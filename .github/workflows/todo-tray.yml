@@ -1,0 +1,31 @@
+name: To-Dos Windows-App bauen
+
+on:
+  push:
+    paths: ['todo-tray/**', '.github/workflows/todo-tray.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: todo-tray
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: todo-tray/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: To-Dos-Windows
+          path: todo-tray/dist/To-Dos.exe
+          retention-days: 30

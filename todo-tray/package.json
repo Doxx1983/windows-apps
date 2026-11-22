@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node test/store.test.js && node test/sync.test.js",
-    "dist": "electron-builder --win portable",
+    "dist": "electron-builder --win portable --publish never",
     "sync": "node -e \"require('fs').copyFileSync('shared/core.js','pwa/core.js')\""
   },
   "devDependencies": {
@@ -23,12 +23,15 @@
       "icon.ico",
       "package.json"
     ],
-    "extraResources": [],
     "win": {
       "icon": "icon.ico",
       "target": [
         "portable"
       ]
+    },
+    "portable": {
+      "artifactName": "To-Dos.exe"
     }
-  }
+  },
+  "author": "windows-apps"
 }
