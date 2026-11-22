@@ -49,6 +49,26 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        DispatcherUnhandledException += (_, a) => { LogError(a.Exception); a.Handled = true; };
+        try { Start(); }
+        catch (Exception ex)
+        {
+            LogError(ex);
+            MessageBox.Show("Start fehlgeschlagen:\n\n" + ex.Message + "\n\nDetails: " + LogPath, "Zwischenablage");
+            Shutdown();
+        }
+    }
+
+    static readonly string LogPath = Path.Combine(Store.Dir, "fehler.log");
+
+    static void LogError(Exception ex)
+    {
+        try { Directory.CreateDirectory(Store.Dir); File.AppendAllText(LogPath, DateTime.Now + "\n" + ex + "\n\n"); }
+        catch { }
+    }
+
+    void Start()
+    {
         _mutex = new Mutex(true, "Zwischenablage.Einzelinstanz", out bool created);
         if (!created) { Shutdown(); return; }
 
