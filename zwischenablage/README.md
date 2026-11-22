@@ -15,14 +15,14 @@ Merkt sich alles, was du kopierst: Text, Bilder und Dateien. Läuft im Infoberei
 - **Aufbewahrung:** 30 Tage (`RetentionDays`), Angeheftetes bleibt. Daten unter `%LOCALAPPDATA%\Zwischenablage` (SQLite `verlauf.db`, Bilder in `images\`).
 
 ## Bauen (Windows)
-.NET 8 SDK installieren, dann in diesem Ordner:
+.NET 10 SDK (LTS) installieren, dann in diesem Ordner:
 
 ```
 dotnet run
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
 ```
 
-Ergebnis: `bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\Zwischenablage.exe`.
+Ergebnis: `bin\Release\net10.0-windows10.0.19041.0\win-x64\publish\Zwischenablage.exe`.
 
 ## Grenzen
 - Browser-Erweiterungen von Passwort-Managern setzen die Flags nicht immer; deren Kopien lassen sich nicht sicher erkennen.
