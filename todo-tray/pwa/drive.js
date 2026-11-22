@@ -93,7 +93,7 @@ const Drive = (() => {
     const roots = await list(`name='${esc(ordnerName)}' and mimeType='${FOLDER}' and trashed=false`, 'id');
     if (!roots.length) throw new Error('ORDNER');
     ids.root = roots[0].id;
-    for (const n of ['aufgaben', 'dateien', 'eingang']) ids[n] = await subfolder(ids.root, n, true);
+    for (const n of ['aufgaben', 'dateien', 'eingang', 'befehle']) ids[n] = await subfolder(ids.root, n, true);
   }
 
   function init(cid) { clientId = cid; }
@@ -129,6 +129,7 @@ const Drive = (() => {
         } catch { /* halb synchronisierte Datei: beim nächsten Mal */ }
       }));
     }
+    await applyCommands();
     const proj = rootFiles.find(f => f.name === 'projekte.json'), nu = rootFiles.find(f => f.name === 'nutzer.json');
     if (nu) ids.nutzer = nu.id;
     if (proj) ids.projekte = proj.id;
@@ -139,6 +140,18 @@ const Drive = (() => {
       nutzer: n && Array.isArray(n.nutzer) ? n.nutzer : [],
       eingang: inbox.map(f => ({ id: f.id, name: f.name, link: f.webViewLink, size: f.size })),
     };
+  }
+
+  // Befehlsdateien (befehle/*.json, z. B. von Claude) anwenden und in den Papierkorb legen.
+  async function applyCommands() {
+    if (!ids.befehle) return;
+    for (const f of await children(ids.befehle, ` and mimeType != '${FOLDER}'`)) {
+      try {
+        const c = await readJson(f.id);
+        if (c && typeof c.id === 'string' && c.patch && typeof c.patch === 'object' && cache.has(c.id)) await update(c.id, c.patch);
+        await trash(f.id);
+      } catch { /* halb synchronisiert oder Aufgabe fehlt: beim nächsten Mal */ }
+    }
   }
 
   // ---------- Schreiben ----------

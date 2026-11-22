@@ -46,6 +46,7 @@ Im Ordner `pwa/`: Web-App für Android/iPhone, spricht direkt mit der Google-Dri
 <Ordner>/nutzer.json          { "nutzer": ["Anna", "Ben"] }   (trägt sich beim ersten Start selbst ein)
 <Ordner>/dateien/<id>/...     Anhänge der Aufgabe <id>
 <Ordner>/eingang/             Dateien vom Handy, noch ohne Aufgabe
+<Ordner>/befehle/<name>.json  Änderungswunsch von außen: { "id": "<aufgabe>", "patch": { "erledigt": true } }; die App wendet ihn beim nächsten Laden an und löscht die Datei (für Werkzeuge, die Dateien nur neu anlegen können)
 <Ordner>/archiv/<Projekt>/<Aufgabe>/   einsortierte Dateien erledigter Aufgaben
 <Ordner>/aufgaben/<id>.json   eine Datei pro Aufgabe
 ```

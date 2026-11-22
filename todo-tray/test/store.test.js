@@ -89,3 +89,14 @@ assert.deepStrictEqual(a.load().aufgaben.find(x => x.id === e1.id).dateien, ['IM
 const e2 = a.inboxNewTask('IMG_002.jpg'); assert.strictEqual(e2.titel, 'IMG_002'); assert.deepStrictEqual(a.load().eingang, []);
 assert.throws(() => a.inboxPath('../projekte.json'));
 console.log('Store-Tests OK');
+
+// Befehlsdateien: Änderung ohne Überschreiben der Aufgabendatei
+const bt = a.create({ titel: 'HA-Test' });
+fs.writeFileSync(path.join(dir, 'befehle', 'x1.json'), JSON.stringify({ id: bt.id, patch: { erledigt: true, titel: 'x', id: 'böse' } }));
+fs.writeFileSync(path.join(dir, 'befehle', 'x2.json'), JSON.stringify({ id: 'gibt-es-nicht', patch: { erledigt: true } }));
+fs.writeFileSync(path.join(dir, 'befehle', 'x3.json'), '{"id":');
+const sigC = a.signature();
+const rb = b.load().aufgaben.find(x => x.id === bt.id);
+assert.strictEqual(rb.erledigt, true); assert.strictEqual(rb.status, 'done'); assert.strictEqual(rb.id, bt.id);
+assert.deepStrictEqual(fs.readdirSync(path.join(dir, 'befehle')), ['x3.json']);   // kaputte (halb synchronisierte) bleibt liegen
+assert.notStrictEqual(a.signature(), sigC);
