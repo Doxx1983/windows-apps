@@ -12,6 +12,15 @@ function applyTheme(t) {
 }
 $('bTheme').onclick = () => applyTheme(THEMES[(THEMES.indexOf(theme) + 1) % 3]);
 applyTheme(theme);
+
+// Popup (Tray) oder großes Fenster (?gross=1): im großen Fenster Vollbild-Knopf, kein Schließen-Kreuz im Kopf
+const GROSS = window.api.modus === 'gross';
+let grossOffen = false;                       // Popup: ist das große Fenster offen? (dann keine doppelten Benachrichtigungen)
+if (GROSS) { document.body.classList.add('gross'); $('bVoll').hidden = false; document.title = 'To-Dos'; }
+window.api.beiGrossStatus(o => { grossOffen = o; });
+$('bGross').title = GROSS ? 'Zurück zum Popup' : 'Großes Fenster';
+$('bGross').onclick = () => (GROSS ? window.api.popupOeffnen() : window.api.grossOeffnen());
+$('bVoll').onclick = () => window.api.vollbild();
 $('datum').textContent = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 const heuteStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
@@ -161,7 +170,7 @@ function pruefeNeueZuweisungen() {
   if (bekannt) {
     for (const id of meine) if (!bekannt.has(id)) {
       const t = finde(id);
-      if (t && t.geaendertVon !== cfg.nutzer && typeof Notification !== 'undefined') new Notification('Neue Aufgabe von ' + t.geaendertVon, { body: t.titel });
+      if (t && t.geaendertVon !== cfg.nutzer && typeof Notification !== 'undefined' && (GROSS || !grossOffen)) new Notification('Neue Aufgabe von ' + t.geaendertVon, { body: t.titel });
     }
   }
   bekannt = meine;

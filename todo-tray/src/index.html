@@ -72,6 +72,12 @@
   .hint { color:var(--muted); font-size:.8rem; } .err { color:var(--late); font-weight:600; }
   .heute { font-size:15px; } .pl > button { width:28px; height:28px; border-radius:6px; color:var(--muted); } .pl > button:hover { background:var(--surface2); color:var(--text); }
   .panel { padding:14px; }
+  .i-back { display:none; } body.gross .i-open { display:none; } body.gross .i-back { display:block; } body.gross #bClose { display:none; }
+  /* Großes Fenster: Inhalt zentriert mit Maximalbreite, Board nutzt die volle Breite */
+  body.gross { padding:18px 32px; gap:12px; }
+  body.gross > *:not(.panel):not(.board):not(script) { width:100%; max-width:1040px; margin-inline:auto; }
+  body.gross header h1 { font-size:1.3rem; }
+  body.gross .panel { padding:24px; align-items:center; } body.gross .panel > * { width:100%; max-width:640px; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -83,6 +89,8 @@
     <button class="icon" id="bIn" title="Eingang (Fotos &amp; Dateien vom Handy)">📥<b id="inN" hidden></b></button>
     <button class="icon" id="bProj" title="Projekte &amp; Chats verwalten">☰</button>
     <button class="icon" id="bSet" title="Einstellungen">⚙</button>
+    <button class="icon" id="bGross" title="Großes Fenster"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="i-open"><path d="M9.5 2.5h4v4M13.5 2.5l-5 5M6.5 13.5h-4v-4M2.5 13.5l5-5"/></svg><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="i-back"><path d="M13 6.5h-3.5v-3.5M9.5 6.5l4-4M3 9.5h3.5v3.5M6.5 9.5l-4 4"/></svg></button>
+    <button class="icon" id="bVoll" title="Vollbild (F11)" hidden><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg></button>
     <button class="icon" id="bClose" title="Schließen">✕</button>
   </header>
   <nav id="nav"></nav>

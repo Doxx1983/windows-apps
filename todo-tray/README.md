@@ -12,6 +12,7 @@ Kleine To-do-App im Windows-Infobereich (Tray-Symbol unten rechts). Electron. Kl
 - **Zuordnung** zu Projekten oder Chats (Liste unter ☰ pflegen), Filter nach Zuordnung.
 - **Zwei Nutzer:** beide wählen denselben Ordner (Google-Drive-Desktop oder Netzwerkfreigabe). Änderungen erscheinen automatisch (Ordner-Überwachung + Prüfung alle 5 s).
 - **Eingang (📥) für Handy-Fotos:** Fotos/Dateien mit der Google-Drive-App des Handys in `eingang/` hochladen (Drive-App: „+“ → Hochladen, oder Foto → Teilen → Drive). In der App ordnest du sie einer Aufgabe zu oder machst daraus eine neue Aufgabe; die Datei wandert dabei nach `dateien/<id>/`.
+- **Großes Fenster:** Knopf ⤢ im Kopf (oder Rechtsklick auf das Tray-Symbol → „Großes Fenster“) öffnet ein normales, skalierbares Fenster mit Taskleisten-Eintrag. Vollbild mit dem Knopf oder F11 (Esc beendet es). Größe und Position werden gemerkt. Das Board nutzt die ganze Breite. Solange das große Fenster offen ist, springt ein Klick auf das Tray-Symbol dorthin, der Knopf ⤡ führt zurück zum Popup.
 - Tray: Linksklick öffnet/schließt, Rechtsklick: „Mit Windows starten“, „Beenden“.
 
 ## Installieren (Windows)

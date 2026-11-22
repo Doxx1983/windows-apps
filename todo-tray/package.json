@@ -5,7 +5,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node test/store.test.js && node test/sync.test.js",
+    "test": "node test/store.test.js && node test/sync.test.js && node test/fenster.test.js",
     "dist": "electron-builder --win portable --publish never",
     "sync": "node -e \"require('fs').copyFileSync('shared/core.js','pwa/core.js')\""
   },

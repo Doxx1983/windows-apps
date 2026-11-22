@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld('api', {
   eingangOeffnen: n => call('eingang:oeffnen', n),
   eingangLoeschen: n => call('eingang:loeschen', n),
   breite: w => ipcRenderer.send('breite', w),
+  modus: new URLSearchParams(location.search).get('gross') ? 'gross' : 'popup',
+  grossOeffnen: () => ipcRenderer.send('gross:oeffnen'),
+  popupOeffnen: () => ipcRenderer.send('popup:oeffnen'),
+  vollbild: () => ipcRenderer.send('vollbild'),
+  beiGrossStatus: cb => ipcRenderer.on('gross-status', (_e, offen) => cb(offen)),
   verstecken: () => ipcRenderer.send('verstecken'),
   beiAenderung: cb => ipcRenderer.on('geaendert', () => cb()),
 });

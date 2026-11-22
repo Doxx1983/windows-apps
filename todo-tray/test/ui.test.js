@@ -19,7 +19,8 @@ const { Store } = require('../src/store');
   await page.addInitScript(() => {
     let cb = () => {};
     window.api = { config: async () => ({ nutzer: 'Anna', ordner: 'x', bereit: true }), configSetzen: async c => ({ ...c, bereit: true }),
-      ordnerWaehlen: async () => 'x', verstecken() {}, beiAenderung: f => { cb = f; }, __cb: () => cb(),
+      ordnerWaehlen: async () => 'x', verstecken() {}, modus: new URLSearchParams(location.search).get('gross') ? 'gross' : 'popup',
+      grossOeffnen: () => { window.__gross = (window.__gross || 0) + 1; }, popupOeffnen: () => { window.__popup = (window.__popup || 0) + 1; }, vollbild: () => { window.__voll = (window.__voll || 0) + 1; }, beiGrossStatus: f => { window.__grossStatus = f; }, beiAenderung: f => { cb = f; }, __cb: () => cb(),
       laden: () => window.__laden(), neu: d => window.__neu(d), aendern: (i, p) => window.__aendern(i, p), loeschen: i => window.__loeschen(i),
       projektNeu: d => window.__projektNeu(d), projektAendern: (i, p) => window.__projektAendern(i, p), projektLoeschen: i => window.__projektLoeschen(i),
       breite: w => { window.__breite = w; }, dateiHinzu: (i, p) => window.__dateiHinzu(i, p), dateiOeffnen() {}, eingangZuordnen: (n, i) => window.__eingangZuordnen(n, i), eingangNeu: (n, e) => window.__eingangNeu(n, e), eingangOeffnen() {}, eingangLoeschen() {}, dateiZeigen() {}, dateiLoeschen: async (i, n) => store_remove(i, n) };
@@ -104,6 +105,19 @@ const { Store } = require('../src/store');
   await page.click('nav button:has-text("Offen")'); await page.click('#bTheme'); await page.click('#bTheme'); assert.strictEqual(await th(), 'light');
   assert.strictEqual(await bg(), 'rgb(246, 247, 249)');
   await page.screenshot({ path: path.join(process.argv[2] || require('os').tmpdir(), 'ui.png') });
+  // Popup: Knopf öffnet das große Fenster, kein Vollbild-Knopf
+  assert.ok(await page.locator('#bVoll').isHidden()); await page.click('#bGross'); assert.strictEqual(await page.evaluate(() => window.__gross), 1);
+  // Großes Fenster (?gross=1): Vollbild-Knopf, kein Schließen-Kreuz, Knopf führt zurück zum Popup, Board nutzt die Breite
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('file://' + path.resolve(__dirname, '../src/index.html') + '?gross=1'); await page.waitForSelector('nav button');
+  assert.ok(await page.evaluate(() => document.body.classList.contains('gross')));
+  assert.ok(await page.locator('#bVoll').isVisible()); assert.ok(await page.locator('#bClose').isHidden());
+  await page.click('#bVoll'); assert.strictEqual(await page.evaluate(() => window.__voll), 1);
+  await page.click('#bGross'); assert.strictEqual(await page.evaluate(() => window.__popup), 1);
+  await page.click('nav button:has-text("Board")'); await page.waitForTimeout(150);
+  const bw = await page.locator('#board').evaluate(e => e.getBoundingClientRect().width), nw = await page.locator('#nav').evaluate(e => e.getBoundingClientRect().width);
+  assert.ok(bw > 1150 && nw <= 1041, 'Board voll breit, Rest begrenzt: ' + bw + ' / ' + nw);
+  await page.screenshot({ path: path.join(process.argv[2] || require('os').tmpdir(), 'ui-gross.png') });
   assert.deepStrictEqual(errs, []);
   await browser.close(); console.log('UI-Tests OK');
 })().catch(e => { console.error(e); process.exit(1); });
