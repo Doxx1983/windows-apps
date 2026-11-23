@@ -1,0 +1,24 @@
+name: Dateiablage bauen
+
+on:
+  push:
+    paths:
+      - 'dateiablage/**'
+      - '.github/workflows/dateiablage.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Veröffentlichen
+        working-directory: dateiablage
+        run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ../out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dateiablage
+          path: out/Dateiablage.exe
