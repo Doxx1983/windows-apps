@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { Store } = require('./store');
 const { fensterGroesse, MIN } = require('./fenster');
+const { menuVorlage } = require('./kontextmenue');
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -57,7 +58,8 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   win.loadFile(path.join(__dirname, 'index.html'));
-  win.on('blur', () => { if (!win.webContents.isDevToolsOpened() && !dialogOpen) win.hide(); });
+  kontextmenue(win);
+  win.on('blur', () => { if (!win.webContents.isDevToolsOpened() && !dialogOpen && !menueOffen) win.hide(); });
 }
 
 // ---------- Großes Fenster (normales Fenster mit Rahmen, skalierbar, Vollbild) ----------
@@ -78,6 +80,7 @@ function zeigeGross() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   big.removeMenu();
+  kontextmenue(big);
   big.loadFile(path.join(__dirname, 'index.html'), { query: { gross: '1' } });
   big.once('ready-to-show', () => { if (g.maximiert) big.maximize(); big.show(); });
   // F11: Vollbild an/aus, Esc beendet Vollbild
@@ -97,6 +100,17 @@ const statusAnPopup = () => { if (win && !win.isDestroyed()) win.webContents.sen
 function zeigePopup() {
   if (big && !big.isDestroyed()) big.close();
   placeWindow(); win.show(); win.focus();
+}
+
+// Rechtsklick: Ausschneiden/Kopieren/Einfügen. Das Popup darf sich dabei nicht wegen verlorenem Fokus ausblenden.
+let menueOffen = false;
+function kontextmenue(w) {
+  w.webContents.on('context-menu', (_e, params) => {
+    const vorlage = menuVorlage(params);
+    if (!vorlage.length) return;
+    menueOffen = true;
+    Menu.buildFromTemplate(vorlage).popup({ window: w, callback: () => { menueOffen = false; } });
+  });
 }
 
 let dialogOpen = false;

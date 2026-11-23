@@ -136,6 +136,19 @@ const GIS = `window.google = { accounts: { oauth2: { initTokenClient: () => ({ r
   await page.locator('.task', { hasText: 'Dann B' }).locator('.box').click(); await page.waitForTimeout(400);
   assert.strictEqual(JSON.parse(by('bb-1.json', aufg).content).status, 'done');
 
+  // Speichern übernimmt ungespeicherten Text; "Aufgabe abschließen" setzt auf erledigt, bei Abhängigkeit gesperrt
+  mk('cc-1', 'Zum Abschließen'); mk('dd-1', 'Noch offen'); mk('ee-1', 'Hängt an offen', { abhaengigVon: ['dd-1'] });
+  await page.click('nav button:has-text("Offen")'); await page.click('#bRef'); await page.waitForSelector('.task:has-text("Hängt an offen")');
+  await page.locator('.task .t', { hasText: 'Zum Abschließen' }).click();
+  assert.strictEqual(await page.locator('#dOk').textContent(), 'Speichern');
+  await page.fill('#dTitel', 'Neuer Titel'); await page.fill('#dNotiz', 'Notiz dazu');
+  await page.click('#dOk'); await page.waitForTimeout(400);
+  assert.ok(await page.locator('#pTask').isHidden());
+  const cc = JSON.parse(by('cc-1.json', aufg).content); assert.deepStrictEqual([cc.titel, cc.notiz], ['Neuer Titel', 'Notiz dazu']);
+  await page.locator('.task .t', { hasText: 'Neuer Titel' }).click(); await page.click('#dAbschluss'); await page.waitForTimeout(400);
+  assert.ok(await page.locator('#pTask').isHidden()); assert.strictEqual(JSON.parse(by('cc-1.json', aufg).content).status, 'done');
+  await page.locator('.task .t', { hasText: 'Hängt an offen' }).click(); assert.ok(await page.locator('#dAbschluss').isDisabled()); await page.click('#dOk');
+
   // Board
   await page.click('nav button:has-text("Board")');
   assert.strictEqual(await page.locator('.col').nth(1).locator('.card').count(), 1);

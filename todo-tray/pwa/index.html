@@ -83,6 +83,7 @@
   .tag.blk { background:color-mix(in srgb, var(--doing) 18%, transparent); color:var(--doing); }
   .box.gesperrt { border-style:dashed; font-size:12px; }
   .sec { font-weight:700; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .go.ok { background:var(--ok); color:#fff; } .go:disabled { opacity:.45; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -146,7 +147,7 @@
     <input type="file" id="fFoto" accept="image/*" capture="environment" hidden>
     <input type="file" id="fDatei" multiple hidden>
     <p class="hint" id="dInfo"></p>
-    <div class="r"><button class="go" type="button" id="dOk">Fertig</button><button class="ghost" type="button" id="dArch">Archivieren</button></div>
+    <div class="r" style="flex-wrap:wrap"><button class="go" type="button" id="dOk">Speichern</button><button class="go ok" type="button" id="dAbschluss">Aufgabe abschließen</button><button class="ghost" type="button" id="dArch">Archivieren</button></div>
   </section>
 
   <section class="panel" id="pIn" hidden>

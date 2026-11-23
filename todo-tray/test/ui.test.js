@@ -87,6 +87,25 @@ const { Store } = require('../src/store');
   assert.strictEqual(await page.locator('.task', { hasText: 'Dann B' }).locator('.tag.blk').count(), 0);
   await page.locator('.task', { hasText: 'Dann B' }).locator('.box').click(); await page.waitForTimeout(250);
   assert.strictEqual(store.load().aufgaben.find(t => t.id === sbb.id).status, 'done');
+  // Speichern übernimmt ungespeicherten Text; "Aufgabe abschließen" setzt auf erledigt, bei Abhängigkeit gesperrt
+  const sz = store.create({ titel: 'Zum Abschließen' }), sd = store.create({ titel: 'Noch offen' }), se = store.create({ titel: 'Hängt an offen' });
+  store.update(se.id, { abhaengigVon: [sd.id] });
+  await page.evaluate(() => window.api.__cb()); await page.waitForTimeout(250);
+  await page.locator('.task .t', { hasText: 'Zum Abschließen' }).click();
+  assert.strictEqual(await page.locator('#dOk').textContent(), 'Speichern');
+  await page.fill('#dTitel', 'Neuer Titel'); await page.fill('#dNotiz', 'Notiz dazu');   // ohne das Feld zu verlassen
+  await page.click('#dOk'); await page.waitForTimeout(250);
+  assert.ok(await page.locator('#pTask').isHidden());
+  assert.deepStrictEqual([store.load().aufgaben.find(t => t.id === sz.id).titel, store.load().aufgaben.find(t => t.id === sz.id).notiz], ['Neuer Titel', 'Notiz dazu']);
+  await page.locator('.task .t', { hasText: 'Neuer Titel' }).click();
+  assert.strictEqual(await page.locator('#dAbschluss').textContent(), 'Aufgabe abschließen');
+  await page.click('#dAbschluss'); await page.waitForTimeout(250);
+  assert.ok(await page.locator('#pTask').isHidden()); assert.strictEqual(store.load().aufgaben.find(t => t.id === sz.id).status, 'done');
+  await page.click('nav button:has-text("Erledigt")'); await page.locator('.task .t', { hasText: 'Neuer Titel' }).click();
+  assert.strictEqual(await page.locator('#dAbschluss').textContent(), 'Wieder öffnen'); await page.click('#dAbschluss'); await page.waitForTimeout(250);
+  assert.strictEqual(store.load().aufgaben.find(t => t.id === sz.id).status, 'todo');
+  await page.click('nav button:has-text("Offen")'); await page.locator('.task .t', { hasText: 'Hängt an offen' }).click();
+  assert.ok(await page.locator('#dAbschluss').isDisabled()); await page.click('#dOk');
   // Freigabe: Projekt von Ben nur für Ben -> Anna sieht weder Projekt noch Aufgabe; Mitglieder per Häkchen ändern
   const bs = new Store(dir, 'Ben'); const gp = bs.addProject({ name: 'Geheim', mitglieder: ['Ben'] }); bs.create({ titel: 'Überraschung', zuordnung: gp.id });
   await page.evaluate(() => window.api.__cb()); await page.waitForTimeout(250);

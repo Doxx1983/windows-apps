@@ -130,7 +130,7 @@ function pruefeNeueZuweisungen() {
   bekannt = meine;
 }
 async function laden() { if (!bereit || busy) return; busy = true; try { await run(async () => { const roh = await Drive.load(); data = Core.filterSichtbar(roh, me); data.alle = roh.aufgaben; pruefeNeueZuweisungen(); render(); }); } finally { busy = false; } }
-async function aendern(id, patch) { await run(async () => { await Drive.update(id, patch); }); await laden(); }
+async function aendern(id, patch) { const ok = await run(async () => { await Drive.update(id, patch); return true; }); await laden(); return !!ok; }
 
 // ---------- Details ----------
 async function oeffneDetail(id) {
@@ -146,6 +146,8 @@ function refreshDetail() {
   $('dAblegen').checked = !!t.ablegen; $('dAblage').textContent = t.ablage ? 'Dateien abgelegt in: ' + t.ablage : '';
   $('dInfo').textContent = 'Angelegt von ' + t.erstelltVon + ', zuletzt geändert von ' + t.geaendertVon + '.';
   $('dArch').textContent = t.archiviert ? 'Zurückholen' : 'Archivieren';
+  $('dAbschluss').textContent = t.status === 'done' ? 'Wieder öffnen' : 'Aufgabe abschließen';
+  $('dAbschluss').disabled = voraussetzungen(t).length > 0;
   // Zuständige: Mehrfachauswahl, nur Mitglieder des Projekts (bereits Zugewiesene bleiben sichtbar)
   const wer = $('dWer'); wer.replaceChildren();
   for (const n of new Set([...Core.werFuer(data.projekte, t.zuordnung, nutzerListe()), ...t.zugewiesenAn])) {
@@ -197,7 +199,20 @@ for (const id of ['fFoto', 'fDatei']) $(id).onchange = async e => {
   await run(async () => { detailFiles = await Drive.addFiles(detailId, files); toast('Hochgeladen ✓'); refreshDetail(); });
   await laden();
 };
-$('dOk').onclick = () => { detailId = null; schliesse(); };
+// Titel/Notiz stehen evtl. noch im Feld (Änderung wird erst beim Verlassen des Feldes gemeldet): beim Speichern explizit mitnehmen.
+const offeneTexte = () => {
+  const t = finde(detailId), p = {}, titel = $('dTitel').value.trim(), notiz = $('dNotiz').value;
+  if (titel && titel !== t.titel) p.titel = titel;
+  if (notiz !== (t.notiz || '')) p.notiz = notiz;
+  return p;
+};
+const schliesseDetail = () => { detailId = null; schliesse(); };
+$('dOk').onclick = async () => { const p = offeneTexte(); if (Object.keys(p).length && !(await aendern(detailId, p))) return; schliesseDetail(); };
+$('dAbschluss').onclick = async () => {
+  const t = finde(detailId);
+  if (!(await aendern(detailId, { ...offeneTexte(), status: t.status === 'done' ? 'todo' : 'done' }))) return;   // bei Fehler (z. B. wartet auf …) offen lassen
+  schliesseDetail();
+};
 $('dArch').onclick = async () => { const t = finde(detailId); await aendern(detailId, { archiviert: !t.archiviert }); detailId = null; schliesse(); };
 
 // ---------- Eingang ----------

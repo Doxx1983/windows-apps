@@ -190,7 +190,7 @@ function pruefeNeueZuweisungen() {
 }
 
 async function laden() { if (!cfg.bereit) return; const roh = await window.api.laden(); data = Core.filterSichtbar(roh, cfg.nutzer); data.alle = roh.aufgaben; pruefeNeueZuweisungen(); render(); }
-async function aendern(id, patch) { try { await window.api.aendern(id, patch); } catch (e) { toast(fehlerText(e)); } await laden(); }
+async function aendern(id, patch) { let ok = true; try { await window.api.aendern(id, patch); } catch (e) { toast(fehlerText(e)); ok = false; } await laden(); return ok; }
 
 // ---------- Detail ----------
 function oeffneDetail(id) {
@@ -237,6 +237,8 @@ function refreshDetail(erst) {
   $('dAblegen').checked = !!t.ablegen; $('dAblage').textContent = t.ablage ? 'Dateien abgelegt in: ' + t.ablage : '';
   $('dInfo').textContent = 'Angelegt von ' + t.erstelltVon + ', zuletzt geändert von ' + t.geaendertVon + '.';
   $('dArch').textContent = t.archiviert ? 'Zurückholen' : 'Archivieren';
+  $('dAbschluss').textContent = t.status === 'done' ? 'Wieder öffnen' : 'Aufgabe abschließen';
+  $('dAbschluss').disabled = offen.length > 0; $('dAbschluss').title = offen.length ? 'Wartet noch auf: ' + offen.map(x => sichtName(x.id)).join(', ') : '';
   const box = $('dDateien'); box.replaceChildren();
   if (!t.dateien.length) box.append(el('p', { className: 'hint', textContent: 'Noch keine Dateien.' }));
   for (const n of t.dateien) {
@@ -255,7 +257,20 @@ feld('dAblegen', 'ablegen', e => e.checked); feld('dZu', 'zuordnung', e => e.val
 $('dTitel').onchange = () => { const v = $('dTitel').value.trim(); if (v) aendern(detailId, { titel: v }); else $('dTitel').value = finde(detailId).titel; };
 $('dNotiz').onchange = () => aendern(detailId, { notiz: $('dNotiz').value });
 $('dAdd').onclick = async () => { await window.api.dateiWaehlen(detailId); await laden(); };
-$('dOk').onclick = () => { detailId = null; $('pTask').hidden = true; };
+// Titel/Notiz stehen evtl. noch im Feld (Änderung wird erst beim Verlassen des Feldes gemeldet): beim Speichern explizit mitnehmen.
+const offeneTexte = () => {
+  const t = finde(detailId), p = {}, titel = $('dTitel').value.trim(), notiz = $('dNotiz').value;
+  if (titel && titel !== t.titel) p.titel = titel;
+  if (notiz !== (t.notiz || '')) p.notiz = notiz;
+  return p;
+};
+const schliesseDetail = () => { detailId = null; $('pTask').hidden = true; };
+$('dOk').onclick = async () => { const p = offeneTexte(); if (Object.keys(p).length && !(await aendern(detailId, p))) return; schliesseDetail(); };
+$('dAbschluss').onclick = async () => {
+  const t = finde(detailId);
+  if (!(await aendern(detailId, { ...offeneTexte(), status: t.status === 'done' ? 'todo' : 'done' }))) return;   // bei Fehler (z. B. wartet auf …) offen lassen
+  schliesseDetail();
+};
 $('dArch').onclick = async () => { const t = finde(detailId); await aendern(detailId, { archiviert: !t.archiviert }); detailId = null; $('pTask').hidden = true; };
 const drop = $('dDrop');
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
