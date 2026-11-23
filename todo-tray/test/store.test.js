@@ -41,7 +41,7 @@ let u = b.update(k.id, { status: 'doing' }); assert.strictEqual(u.erledigt, fals
 u = b.update(k.id, { status: 'done' }); assert.strictEqual(u.erledigt, true); assert.ok(u.erledigtAm);
 u = b.update(k.id, { erledigt: false }); assert.strictEqual(u.status, 'todo'); assert.strictEqual(u.erledigtAm, null);
 u = b.update(k.id, { status: 'quatsch' }); assert.strictEqual(u.status, 'todo');
-assert.strictEqual(u.zugewiesenAn, 'Ben'); assert.strictEqual(u.faellig, '2026-12-01');
+assert.deepStrictEqual(u.zugewiesenAn, ['Ben']);   // alter Einzelname wird zur Liste assert.strictEqual(u.faellig, '2026-12-01');
 assert.deepStrictEqual(a.users().sort(), ['Anna', 'Ben']);
 
 // Altbestand ohne Status
@@ -88,4 +88,38 @@ const e1 = a.create({ titel: 'Fotos' }); a.inboxAssign('IMG_001.jpg', e1.id);
 assert.deepStrictEqual(a.load().aufgaben.find(x => x.id === e1.id).dateien, ['IMG_001.jpg']);
 const e2 = a.inboxNewTask('IMG_002.jpg'); assert.strictEqual(e2.titel, 'IMG_002'); assert.deepStrictEqual(a.load().eingang, []);
 assert.throws(() => a.inboxPath('../projekte.json'));
+// Mehrere Zuständige
+let mz = a.create({ titel: 'Gemeinsam', zugewiesenAn: ['Anna', 'Ben', 'Anna', ' '] });
+assert.deepStrictEqual(mz.zugewiesenAn, ['Anna', 'Ben']);
+assert.deepStrictEqual(b.update(mz.id, { zugewiesenAn: 'Cleo' }).zugewiesenAn, ['Cleo']);
+assert.deepStrictEqual(b.update(mz.id, { zugewiesenAn: null }).zugewiesenAn, []);
+assert.deepStrictEqual(a.create({ titel: 'x' }).zugewiesenAn, []);
+
+// Abhängigkeiten: erst Voraussetzung erledigen
+const v1 = a.create({ titel: 'Material kaufen' }), v2 = a.create({ titel: 'Aufbauen' }), v3 = a.create({ titel: 'Streichen' });
+b.update(v2.id, { abhaengigVon: [v1.id, v2.id, 'kaputt/id'] });                   // Selbstbezug und ungültige IDs fliegen raus
+assert.deepStrictEqual(a.load().aufgaben.find(x => x.id === v2.id).abhaengigVon, [v1.id]);
+assert.throws(() => a.update(v2.id, { status: 'done' }), /Wartet noch auf: Material kaufen/);
+assert.throws(() => a.update(v2.id, { erledigt: true }), /Wartet noch auf/);
+assert.strictEqual(a.update(v2.id, { status: 'doing' }).status, 'doing');        // anfangen ist erlaubt, abschließen nicht
+assert.throws(() => a.update(v1.id, { abhaengigVon: [v2.id] }), /Kreis/);         // v1 -> v2 -> v1
+a.update(v3.id, { abhaengigVon: [v2.id] });
+assert.throws(() => a.update(v1.id, { abhaengigVon: [v3.id] }), /Kreis/);         // auch über mehrere Stufen
+const sicht = a.load().aufgaben;
+assert.deepStrictEqual(Core.offeneVoraussetzungen(sicht.find(x => x.id === v3.id), sicht).map(x => x.id), [v2.id]);
+a.update(v1.id, { status: 'done' }); assert.strictEqual(a.update(v2.id, { status: 'done' }).status, 'done');   // jetzt frei
+assert.strictEqual(a.update(v3.id, { status: 'done' }).status, 'done');
+a.update(v2.id, { abhaengigVon: ['gibt-es-nicht'] });                               // gelöschte Voraussetzung blockiert nicht
+a.update(v2.id, { status: 'todo' }); assert.strictEqual(a.update(v2.id, { status: 'done' }).status, 'done');
+b.remove(v1.id); b.remove(v2.id); b.remove(v3.id);
+
+// Teilschritte
+const ts = a.create({ titel: 'Umzug' });
+let tu = a.update(ts.id, { schritte: [{ titel: 'Kartons' }, { titel: ' ', erledigt: true }, { titel: 'Transporter', erledigt: true }, { kaputt: 1 }] });
+assert.deepStrictEqual(tu.schritte.map(x => [x.titel, x.erledigt]), [['Kartons', false], ['Transporter', true]]);
+assert.ok(tu.schritte.every(x => typeof x.id === 'string' && x.id));
+assert.deepStrictEqual(Core.schrittFortschritt(tu), { fertig: 1, gesamt: 2 });
+assert.strictEqual(a.update(ts.id, { titel: 'Umzug 2' }).schritte.length, 2);        // andere Änderungen lassen Schritte unberührt
+a.remove(ts.id);
+
 console.log('Store-Tests OK');

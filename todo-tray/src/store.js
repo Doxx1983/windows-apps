@@ -105,6 +105,7 @@ class Store {
     const file = this._taskFile(id);
     const cur = readJson(file);
     if (!cur) throw new Error('Aufgabe nicht gefunden');
+    Core.pruefePatch(patch, Core.normalize({ ...cur }), this.load().aufgaben);   // Abhängigkeiten/Kreise prüfen
     const t = Core.applyPatch(cur, patch, this.user);
     atomicWrite(file, t);
     return t;

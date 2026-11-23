@@ -5,6 +5,9 @@ Kleine To-do-App im Windows-Infobereich (Tray-Symbol unten rechts). Electron. Kl
 ## Funktionen
 - Aufgaben anlegen, abhaken, archivieren (Archiv: zurückholen oder endgültig löschen). Klick auf eine Aufgabe öffnet die Details (Titel, Notiz, Status, Fälligkeit, Zuständigkeit, Dateien).
 - **Zuständig:** Aufgaben lassen sich dir selbst oder dem anderen Nutzer zuweisen; Filter „Zuständig“. Weist der andere dir etwas zu, kommt eine Windows-Benachrichtigung.
+- **Mehrere Zuständige:** In den Details lassen sich beliebig viele Personen per Klick an- und abwählen (nur Mitglieder des Projekts, falls es eingeschränkt ist). Beim schnellen Anlegen wählst du eine Person, weitere folgen in den Details.
+- **Abhängigkeiten („Wartet auf“):** Eine Aufgabe kann auf andere Aufgaben warten. Solange diese nicht erledigt sind, ist sie mit 🔒 gesperrt und lässt sich nicht abschließen (Anfangen und Bearbeiten geht). Kreise (A wartet auf B wartet auf A) werden abgelehnt. Gelöschte Voraussetzungen blockieren nicht mehr. Die Prüfung gilt auch für Projekte, die du nicht sehen darfst; dann steht dort „🔒 (nicht sichtbar)“.
+- **Teilschritte:** Checkliste pro Aufgabe mit Fortschritt (z. B. ☑ 2/5). Sie ist unabhängig vom Status: Die Aufgabe wird nicht automatisch fertig, wenn alle Schritte erledigt sind.
 - **Fälligkeit:** Datum pro Aufgabe, überfällige sind rot markiert, Sortierung nach Fälligkeit.
 - **Kanban-Board** (Reiter „Board“, Fenster wird breiter): Zu tun / In Arbeit / Fertig. Karten per Drag-and-drop oder ◀ ▶ verschieben.
 - **Dateiablage:** Dateien pro Aufgabe per Drag-and-drop oder „auswählen“. Sie werden in den gemeinsamen Ordner kopiert (`dateien/<id>/`), liegen also im Google Drive und sind für beide sichtbar. Öffnen, im Ordner zeigen, löschen.
@@ -52,12 +55,13 @@ Im Ordner `pwa/`: Web-App für Android/iPhone, spricht direkt mit der Google-Dri
 Aufgabe:
 ```json
 { "id": "abc-123", "titel": "Garn bestellen", "notiz": "", "status": "todo|doing|done", "erledigt": false, "erledigtAm": null,
-  "archiviert": false, "heute": "2026-11-21", "ablegen": false, "ablage": null, "faellig": "2026-12-01", "zugewiesenAn": "Ben", "zuordnung": "<projekt-id>|null",
+  "archiviert": false, "heute": "2026-11-21", "ablegen": false, "ablage": null, "faellig": "2026-12-01", "zugewiesenAn": ["Ben", "Anna"],
+  "abhaengigVon": ["<aufgaben-id>"], "schritte": [ { "id": "s1", "titel": "Kartons", "erledigt": false } ], "zuordnung": "<projekt-id>|null",
   "erstelltVon": "Anna", "erstelltAm": "ISO", "geaendertVon": "Ben", "geaendertAm": "ISO" }
 ```
 Eine Datei pro Aufgabe + Teiländerungen (nur geänderte Felder werden neu geschrieben) vermeiden Konflikte. Dateien mit Namen wie `abc (1).json` (Drive-Konfliktkopien) oder unvollständige JSON werden ignoriert.
 
-Beim Ändern per Hand/Claude: `status` und `erledigt` zusammen setzen (`done` = `erledigt: true`). Die App ergänzt fehlende Felder selbst.
+Beim Ändern per Hand/Claude: `status` und `erledigt` zusammen setzen (`done` = `erledigt: true`). Die App ergänzt fehlende Felder selbst. `zugewiesenAn` war früher ein einzelner Name und wird beim Lesen automatisch zur Liste; ältere App-Versionen kommen mit der Liste nicht zurecht, daher beide Apps (Windows und Handy) auf den neuen Stand bringen. `abhaengigVon` enthält Aufgaben-IDs, die erledigt sein müssen, bevor diese Aufgabe `done` werden darf.
 
 Claude kann die Dateien über den Drive-Connector lesen und ändern: Felder bearbeiten oder neue `aufgaben/<id>.json` anlegen (ID: nur `a-z 0-9 -`, Dateiname = `id`).
 

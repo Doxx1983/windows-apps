@@ -88,7 +88,7 @@ const GIS = `window.google = { accounts: { oauth2: { initTokenClient: () => ({ r
   await page.waitForSelector('.task');
   const tf = kids(aufg)[0], t = JSON.parse(tf.content);
   assert.ok(/^[a-z0-9-]+\.json$/.test(tf.name) && tf.name === t.id + '.json');
-  assert.strictEqual(t.zugewiesenAn, 'Anna'); assert.strictEqual(t.faellig, '2020-05-01'); assert.strictEqual(t.zuordnung, 'haekel');
+  assert.deepStrictEqual(t.zugewiesenAn, ['Anna']); assert.strictEqual(t.faellig, '2020-05-01'); assert.strictEqual(t.zuordnung, 'haekel');
   assert.strictEqual(t.erstelltVon, 'Ben'); assert.strictEqual(t.status, 'todo'); assert.ok(t.heute);
   assert.ok(await page.locator('.tag.late').count());
 
@@ -100,16 +100,41 @@ const GIS = `window.google = { accounts: { oauth2: { initTokenClient: () => ({ r
 
   // Detail: Status, Datei-Upload (Foto), Zuständig ändern -> Patch bleibt erhalten
   await page.locator('.task .t', { hasText: 'Flyer' }).click();
-  await page.selectOption('#dStatus', 'doing'); await page.selectOption('#dWer', 'Ben');
+  await page.selectOption('#dStatus', 'doing'); await page.locator('#dWer .chip', { hasText: 'Ben' }).click();
   await page.setInputFiles('#fFoto', { name: 'IMG_1.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('JPEGDATA') });
   await page.waitForSelector('#dDateien .pl');
   const t2 = JSON.parse(by(t.id + '.json', aufg).content);
-  assert.strictEqual(t2.status, 'doing'); assert.strictEqual(t2.zugewiesenAn, 'Ben'); assert.strictEqual(t2.faellig, '2020-05-01');
+  assert.strictEqual(t2.status, 'doing'); assert.deepStrictEqual(t2.zugewiesenAn, ['Anna', 'Ben']); assert.strictEqual(t2.faellig, '2020-05-01');
   const dir = by(t.id, by('dateien', rootF.id).id); assert.ok(dir, 'dateien/<id> fehlt');
   assert.deepStrictEqual(kids(dir.id).map(f => f.name), ['IMG_1.jpg']); assert.strictEqual(kids(dir.id)[0].content, 'JPEGDATA');
   await page.check('#dAblegen'); await page.waitForTimeout(300);
   assert.strictEqual(JSON.parse(by(t.id + '.json', aufg).content).ablegen, true);
   await page.click('#dOk');
+
+  // Abhängigkeit, Teilschritte: B wartet auf A
+  const mk = (id, titel, extra = {}) => add(id + '.json', aufg, 'application/json', JSON.stringify({ id, titel, status: 'todo', erledigt: false, erstelltVon: 'Anna', geaendertVon: 'Anna', erstelltAm: new Date().toISOString(), ...extra }));
+  mk('aa-1', 'Erst A'); mk('bb-1', 'Dann B', { abhaengigVon: ['aa-1'] });
+  await page.click('nav button:has-text("Offen")'); await page.click('#bRef'); await page.waitForSelector('.task:has-text("Dann B")');
+  const brow = page.locator('.task', { hasText: 'Dann B' });
+  assert.ok((await brow.locator('.tag.blk').textContent()).includes('wartet auf Erst A'));
+  await brow.locator('.box').click(); assert.ok((await page.locator('#toast').textContent()).includes('Wartet noch auf'));
+  await brow.locator('.t').click(); assert.ok((await page.locator('#dBlock').textContent()).includes('Erst A'));
+  assert.ok(await page.evaluate(() => document.querySelector('#dStatus option[value=done]').disabled));
+  await page.fill('#dSchrittNeu', 'Kartons'); await page.press('#dSchrittNeu', 'Enter'); await page.waitForTimeout(300);
+  await page.locator('#dSchritte .step').first().locator('input').check(); await page.waitForTimeout(300);
+  const bb = JSON.parse(by('bb-1.json', aufg).content); assert.deepStrictEqual(bb.schritte.map(x => [x.titel, x.erledigt]), [['Kartons', true]]);
+  assert.strictEqual(await page.locator('#dFort').textContent(), ' (1/1)');
+  await page.locator('#dWer .chip', { hasText: 'Anna' }).click(); await page.waitForTimeout(300);   // zweiter Zuständiger neben mir
+  assert.deepStrictEqual(JSON.parse(by('bb-1.json', aufg).content).zugewiesenAn, ['Anna']);
+  // Regel gilt auch im Speicher (nicht nur in der Oberfläche)
+  const msg = await page.evaluate(async () => { try { await Drive.update('bb-1', { status: 'done' }); } catch (e) { return e.message; } });
+  assert.ok(msg && msg.includes('Wartet noch auf: Erst A'), String(msg));
+  assert.strictEqual(JSON.parse(by('bb-1.json', aufg).content).status, 'todo');
+  await page.click('#dOk');
+  await page.locator('.task', { has: page.locator('.t', { hasText: /^Erst A$/ }) }).locator('.box').click(); await page.waitForTimeout(400);
+  assert.strictEqual(await page.locator('.task', { hasText: 'Dann B' }).locator('.tag.blk').count(), 0);
+  await page.locator('.task', { hasText: 'Dann B' }).locator('.box').click(); await page.waitForTimeout(400);
+  assert.strictEqual(JSON.parse(by('bb-1.json', aufg).content).status, 'done');
 
   // Board
   await page.click('nav button:has-text("Board")');
@@ -127,7 +152,7 @@ const GIS = `window.google = { accounts: { oauth2: { initTokenClient: () => ({ r
   await page.setInputFiles('#fIn', { name: 'Direkt.png', mimeType: 'image/png', buffer: Buffer.from('PNG') }); await page.waitForTimeout(300);
   await page.locator('#inListe .pl').first().locator('button:has-text("Neue Aufgabe")').click(); await page.waitForTimeout(500);
   const neu = kids(aufg).map(f => f.content && JSON.parse(f.content)).find(x => x && x.titel === 'Direkt');
-  assert.ok(neu && neu.zugewiesenAn === 'Ben'); assert.strictEqual(kids(by(neu.id, by('dateien', rootF.id).id).id).length, 1);
+  assert.ok(neu && neu.zugewiesenAn.includes('Ben')); assert.strictEqual(kids(by(neu.id, by('dateien', rootF.id).id).id).length, 1);
   await page.click('#inOk');
 
   // Freigabe: Projekt nur für Anna -> Ben (ich) sieht es nicht; eigenes Projekt begrenzen

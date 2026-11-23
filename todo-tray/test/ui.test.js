@@ -52,10 +52,10 @@ const { Store } = require('../src/store');
   assert.ok((await page.locator('.task').allTextContents()).some(t => t.includes('Von Ben')));
   // Zuweisen, Fälligkeit, Status, Dateien über das Detailfenster
   await page.click('nav button:has-text("Offen")'); await page.locator('.task .t', { hasText: 'Garn bestellen' }).click();
-  await page.selectOption('#dWer', 'Ben'); await page.fill('#dFaellig', '2020-01-01'); await page.dispatchEvent('#dFaellig', 'change');
+  await page.locator('#dWer .chip', { hasText: 'Ben' }).click(); await page.fill('#dFaellig', '2020-01-01'); await page.dispatchEvent('#dFaellig', 'change');
   await page.selectOption('#dStatus', 'doing');
   let gb = store.load().aufgaben.find(t => t.titel === 'Garn bestellen');
-  assert.strictEqual(gb.zugewiesenAn, 'Ben'); assert.strictEqual(gb.faellig, '2020-01-01'); assert.strictEqual(gb.status, 'doing');
+  assert.deepStrictEqual(gb.zugewiesenAn, ['Anna', 'Ben']);   // mehrere Zuständige assert.strictEqual(gb.faellig, '2020-01-01'); assert.strictEqual(gb.status, 'doing');
   const f = path.join(dir, 'angebot.pdf'); fs.writeFileSync(f, 'x');
   await page.evaluate(([id, p]) => window.api.dateiHinzu(id, [p]), [gb.id, f]); await page.evaluate(() => window.api.__cb()); await page.waitForTimeout(200);
   assert.ok((await page.locator('#dDateien').textContent()).includes('angebot.pdf'));
@@ -63,6 +63,30 @@ const { Store } = require('../src/store');
   assert.strictEqual(store.load().aufgaben.find(t => t.id === gb.id).ablegen, true);
   await page.click('#dOk');
   assert.ok((await page.locator('.tag.late').count()) >= 1);                  // überfällig markiert
+  // Abhängigkeit: B wartet auf A -> kann nicht abgehakt werden, bis A erledigt ist; Teilschritte
+  const sa = store.create({ titel: 'Erst A' }), sbb = store.create({ titel: 'Dann B' }); store.update(sbb.id, { abhaengigVon: [sa.id] });
+  await page.click('nav button:has-text("Offen")'); await page.evaluate(() => window.api.__cb()); await page.waitForTimeout(250);
+  const brow = page.locator('.task', { hasText: 'Dann B' });
+  assert.ok((await brow.locator('.tag.blk').textContent()).includes('wartet auf Erst A'));
+  await brow.locator('.box').click();
+  assert.ok((await page.locator('#toast').textContent()).includes('Wartet noch auf: Erst A')); assert.strictEqual(store.load().aufgaben.find(t => t.id === sbb.id).status, 'todo');
+  await brow.locator('.t').click();
+  assert.ok((await page.locator('#dBlock').textContent()).includes('Erst A')); assert.ok(await page.evaluate(() => document.querySelector('#dStatus option[value=done]').disabled));
+  await page.fill('#dSchrittNeu', 'Kartons'); await page.press('#dSchrittNeu', 'Enter'); await page.waitForTimeout(150);
+  await page.fill('#dSchrittNeu', 'Transporter'); await page.press('#dSchrittNeu', 'Enter'); await page.waitForTimeout(150);
+  await page.locator('#dSchritte .step').first().locator('input').check(); await page.waitForTimeout(150);
+  assert.deepStrictEqual(store.load().aufgaben.find(t => t.id === sbb.id).schritte.map(x => [x.titel, x.erledigt]), [['Kartons', true], ['Transporter', false]]);
+  assert.strictEqual(await page.locator('#dFort').textContent(), ' (1/2)');
+  await page.selectOption('#dDepAdd', { label: 'Garn bestellen' }); await page.waitForTimeout(150);        // zweite Voraussetzung
+  assert.strictEqual(store.load().aufgaben.find(t => t.id === sbb.id).abhaengigVon.length, 2);
+  assert.ok(!(await page.locator('#dDepAdd option').allTextContents()).includes('Dann B'));                // nicht von sich selbst
+  await page.screenshot({ path: path.join(process.argv[2] || require('os').tmpdir(), 'ui-detail.png') });
+  await page.locator('#dDep .chip', { hasText: 'Garn bestellen' }).click(); await page.waitForTimeout(150);   // wieder entfernen
+  await page.click('#dOk');
+  await page.locator('.task', { has: page.locator('.t', { hasText: /^Erst A$/ }) }).locator('.box').click(); await page.waitForTimeout(250);   // A erledigt -> B frei
+  assert.strictEqual(await page.locator('.task', { hasText: 'Dann B' }).locator('.tag.blk').count(), 0);
+  await page.locator('.task', { hasText: 'Dann B' }).locator('.box').click(); await page.waitForTimeout(250);
+  assert.strictEqual(store.load().aufgaben.find(t => t.id === sbb.id).status, 'done');
   // Freigabe: Projekt von Ben nur für Ben -> Anna sieht weder Projekt noch Aufgabe; Mitglieder per Häkchen ändern
   const bs = new Store(dir, 'Ben'); const gp = bs.addProject({ name: 'Geheim', mitglieder: ['Ben'] }); bs.create({ titel: 'Überraschung', zuordnung: gp.id });
   await page.evaluate(() => window.api.__cb()); await page.waitForTimeout(250);

@@ -150,7 +150,9 @@ const Drive = (() => {
   }
   const update = (id, patch) => serial(async () => {
     const c = cache.get(id); if (!c) throw new Error('Aufgabe nicht gefunden');
-    const t = Core.applyPatch(await readJson(c.fileId), patch, user);      // frisch lesen, nur geänderte Felder ersetzen
+    const cur = Core.normalize(await readJson(c.fileId));
+    Core.pruefePatch(patch, cur, [...cache.values()].map(x => x.task));   // Abhängigkeiten/Kreise prüfen
+    const t = Core.applyPatch(cur, patch, user);      // frisch lesen, nur geänderte Felder ersetzen
     const r = await writeJson(c.fileId, t);
     cache.set(id, { fileId: c.fileId, modifiedTime: r.modifiedTime, task: t });
     return t;

@@ -78,6 +78,13 @@
   body.gross > *:not(.panel):not(.board):not(script) { width:100%; max-width:1040px; margin-inline:auto; }
   body.gross header h1 { font-size:1.3rem; }
   body.gross .panel { padding:24px; align-items:center; } body.gross .panel > * { width:100%; max-width:640px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:4px 11px; font-size:.82rem; font-weight:600; color:var(--muted); }
+  .chip:hover { border-color:var(--accent); } .chip.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); } .chip.x::after { content:' ✕'; opacity:.6; }
+  .step { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 10px; } .step.done span { text-decoration:line-through; color:var(--muted); }
+  .step button { color:var(--muted); } .tag.blk { background:color-mix(in srgb, var(--doing) 18%, transparent); color:var(--doing); }
+  .box.gesperrt { border-style:dashed; font-size:10px; cursor:not-allowed; }
+  #toast { position:fixed; left:12px; right:12px; bottom:12px; background:var(--text); color:var(--bg); padding:10px 14px; border-radius:10px; z-index:20; font-size:.88rem; box-shadow:var(--shadow); }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -108,6 +115,7 @@
   </form>
   <div class="filter"><span>Zuordnung:</span><select id="filter"></select><span>Zuständig:</span><select id="filterWer"></select></div>
   <main id="liste"></main>
+  <div id="toast" hidden></div>
   <div class="board" id="board" hidden></div>
 
   <section class="panel" id="pTask" hidden>
@@ -117,9 +125,15 @@
     <div class="grid2">
       <label>Status<select id="dStatus"><option value="todo">Zu tun</option><option value="doing">In Arbeit</option><option value="done">Fertig</option></select></label>
       <label>Fällig am<input type="date" id="dFaellig"></label>
-      <label>Zuständig<select id="dWer"></select></label>
       <label>Projekt / Chat<select id="dZu"></select></label>
     </div>
+    <div class="sec">Zuständig</div><div id="dWer" class="chips"></div>
+    <div class="sec">Wartet auf</div><div id="dDep" class="chips"></div>
+    <select id="dDepAdd"></select>
+    <p class="err" id="dBlock"></p>
+    <div class="sec">Teilschritte<span id="dFort"></span></div>
+    <div id="dSchritte" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div class="row"><input type="text" id="dSchrittNeu" placeholder="Neuer Schritt …" autocomplete="off"><button class="go" type="button" id="dSchrittAdd">+</button></div>
     <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="dHeute"> Für heute</label>
     <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="dAblegen"> Zum Einsortieren vormerken (Dateien in Drive-Ordner ablegen)</label>
     <p class="hint" id="dAblage"></p>

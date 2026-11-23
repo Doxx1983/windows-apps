@@ -75,6 +75,14 @@
   .heute { font-size:20px; width:36px; height:36px; color:var(--muted); } .pl > button { padding:4px 10px; font-size:18px; }
   .panel { padding:max(14px,env(safe-area-inset-top)) 14px 14px; } .card { flex-direction:column; align-items:stretch; }
   .sec, b.sec { font-weight:700; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:7px 14px; font-size:.9rem; font-weight:600; color:var(--muted); }
+  .chip.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); } .chip.x::after { content:' ✕'; opacity:.6; }
+  .step { display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:8px 12px; } .step.done span { text-decoration:line-through; color:var(--muted); }
+  .step input { flex:0 0 auto; width:20px !important; height:20px; } .step button { color:var(--muted); font-size:18px; padding:2px 8px; }
+  .tag.blk { background:color-mix(in srgb, var(--doing) 18%, transparent); color:var(--doing); }
+  .box.gesperrt { border-style:dashed; font-size:12px; }
+  .sec { font-weight:700; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -120,9 +128,15 @@
     <div class="grid2">
       <label>Status<select id="dStatus"><option value="todo">Zu tun</option><option value="doing">In Arbeit</option><option value="done">Fertig</option></select></label>
       <label>Fällig am<input type="date" id="dFaellig"></label>
-      <label>Zuständig<select id="dWer"></select></label>
       <label>Projekt / Chat<select id="dZu"></select></label>
     </div>
+    <div class="sec">Zuständig</div><div id="dWer" class="chips"></div>
+    <div class="sec">Wartet auf</div><div id="dDep" class="chips"></div>
+    <select id="dDepAdd"></select>
+    <p class="err" id="dBlock"></p>
+    <div class="sec">Teilschritte<span id="dFort"></span></div>
+    <div id="dSchritte" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="r"><input type="text" id="dSchrittNeu" placeholder="Neuer Schritt …" autocomplete="off"><button class="go" type="button" id="dSchrittAdd">+</button></div>
     <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="dHeute" style="width:auto"> Für heute</label>
     <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="dAblegen" style="width:auto"> Zum Einsortieren vormerken (Dateien in Drive-Ordner ablegen)</label>
     <p class="hint" id="dAblage"></p>

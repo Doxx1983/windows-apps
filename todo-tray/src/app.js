@@ -39,7 +39,7 @@ const passt = {
   archiv: t => t.archiviert,
 };
 const zuordnungOk = t => filter === '' || (filter === '-' ? !t.zuordnung : t.zuordnung === filter);
-const werOk = t => filterWer === '' || (filterWer === '-' ? !t.zugewiesenAn : t.zugewiesenAn === filterWer);
+const werOk = t => filterWer === '' || (filterWer === '-' ? !t.zugewiesenAn.length : t.zugewiesenAn.includes(filterWer));
 const sichtbar = k => data.aufgaben.filter(passt[k]).filter(zuordnungOk).filter(werOk);
 
 function el(tag, props = {}, ...kids) {
@@ -78,6 +78,13 @@ function optionenWer(sel, mitAlle, aktuell, projektId) {
   sel.value = [...sel.options].some(o => o.value === aktuell) ? aktuell : (mitAlle ? '' : cfg.nutzer || '');
 }
 
+// Abhängigkeiten werden gegen ALLE Aufgaben geprüft (auch gegen solche aus Projekten, die ich nicht sehe).
+const alle = () => data.alle || data.aufgaben;
+const voraussetzungen = t => (t.status === 'done' ? [] : Core.offeneVoraussetzungen(t, alle()));
+const sichtName = id => { const x = data.aufgaben.find(a => a.id === id); return x ? x.titel : '🔒 (nicht sichtbar)'; };
+const fehlerText = e => String((e && e.message) || e).replace(/^Error invoking remote method '[^']*': (Error: )?/, '');
+let toastT; function toast(msg, ms = 3500) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
+
 function sortiere(a, b) {
   const rang = t => t.status === 'done' ? 1 : 0;
   return (rang(a) - rang(b)) || (a.faellig || '9999').localeCompare(b.faellig || '9999') || (b.erstelltAm || '').localeCompare(a.erstelltAm || '');
@@ -88,7 +95,10 @@ function metaEl(t) {
   if (t.status === 'doing') meta.append(el('span', { className: 'tag', textContent: 'In Arbeit' }));
   const f = faelligTag(t); if (f) meta.append(f);
   const pn = projName(t.zuordnung); if (pn) meta.append(el('span', { className: 'tag', textContent: pn }));
-  if (t.zugewiesenAn) meta.append(el('span', { className: 'tag wer', textContent: '→ ' + t.zugewiesenAn }));
+  const offen = voraussetzungen(t);
+  if (offen.length) meta.append(el('span', { className: 'tag blk', textContent: '🔒 wartet auf ' + offen.map(x => sichtName(x.id)).join(', ') }));
+  if (t.zugewiesenAn.length) meta.append(el('span', { className: 'tag wer', textContent: '→ ' + t.zugewiesenAn.join(', ') }));
+  const fp = Core.schrittFortschritt(t); if (fp.gesamt) meta.append(el('span', { textContent: '☑ ' + fp.fertig + '/' + fp.gesamt }));
   if (t.ablegen) meta.append(el('span', { className: 'tag', textContent: '🗂 vormerken' }));
   if (t.dateien && t.dateien.length) meta.append(el('span', { textContent: '📎 ' + t.dateien.length }));
   if (t.erstelltVon && t.erstelltVon !== cfg.nutzer) meta.append(el('span', { textContent: 'von ' + t.erstelltVon }));
@@ -97,8 +107,10 @@ function metaEl(t) {
 
 function taskEl(t) {
   const done = t.status === 'done';
-  const box = el('button', { className: 'box', textContent: done ? '✓' : (t.status === 'doing' ? '…' : ''), title: done ? 'Wieder öffnen' : 'Abhaken',
-    onclick: e => { e.stopPropagation(); aendern(t.id, { status: done ? 'todo' : 'done' }); } });
+  const sperre = voraussetzungen(t);
+  const box = el('button', { className: 'box' + (sperre.length ? ' gesperrt' : ''), textContent: done ? '✓' : (sperre.length ? '🔒' : (t.status === 'doing' ? '…' : '')),
+    title: done ? 'Wieder öffnen' : (sperre.length ? 'Wartet auf: ' + sperre.map(x => sichtName(x.id)).join(', ') : 'Abhaken'),
+    onclick: e => { e.stopPropagation(); if (sperre.length) return toast('Wartet noch auf: ' + sperre.map(x => sichtName(x.id)).join(', ')); aendern(t.id, { status: done ? 'todo' : 'done' }); } });
   const act = el('div', { className: 'act' });
   if (!t.archiviert) {
     act.append(el('button', { className: 'heute' + (istHeute(t) ? ' on' : ''), textContent: istHeute(t) ? '★' : '☆', title: 'Für heute',
@@ -117,7 +129,8 @@ function cardEl(t) {
   const i = SPALTEN.findIndex(s => s[0] === t.status);
   const act = el('div', { className: 'act' });
   if (i > 0) act.append(el('button', { textContent: '◀', title: 'Eine Spalte zurück', onclick: e => { e.stopPropagation(); aendern(t.id, { status: SPALTEN[i - 1][0] }); } }));
-  if (i < 2) act.append(el('button', { textContent: '▶', title: 'Eine Spalte weiter', onclick: e => { e.stopPropagation(); aendern(t.id, { status: SPALTEN[i + 1][0] }); } }));
+  if (i < 2) act.append(el('button', { textContent: '▶', title: SPALTEN[i + 1][0] === 'done' && voraussetzungen(t).length ? 'Gesperrt: wartet noch auf andere Aufgaben' : 'Eine Spalte weiter', disabled: SPALTEN[i + 1][0] === 'done' && voraussetzungen(t).length > 0,
+    onclick: e => { e.stopPropagation(); aendern(t.id, { status: SPALTEN[i + 1][0] }); } }));
   const c = el('div', { className: 'card ' + t.status, draggable: true, onclick: () => oeffneDetail(t.id) }, el('div', { className: 't', textContent: t.titel }), metaEl(t), act);
   c.ondragstart = e => { e.dataTransfer.setData('text/plain', t.id); e.dataTransfer.effectAllowed = 'move'; };
   return c;
@@ -166,7 +179,7 @@ function render() {
 
 // Benachrichtigung, wenn der andere Nutzer mir etwas zuweist.
 function pruefeNeueZuweisungen() {
-  const meine = new Set(data.aufgaben.filter(t => t.zugewiesenAn === cfg.nutzer && t.status !== 'done' && !t.archiviert).map(t => t.id));
+  const meine = new Set(data.aufgaben.filter(t => t.zugewiesenAn.includes(cfg.nutzer) && t.status !== 'done' && !t.archiviert).map(t => t.id));
   if (bekannt) {
     for (const id of meine) if (!bekannt.has(id)) {
       const t = finde(id);
@@ -176,8 +189,8 @@ function pruefeNeueZuweisungen() {
   bekannt = meine;
 }
 
-async function laden() { if (!cfg.bereit) return; data = Core.filterSichtbar(await window.api.laden(), cfg.nutzer); pruefeNeueZuweisungen(); render(); }
-async function aendern(id, patch) { await window.api.aendern(id, patch); await laden(); }
+async function laden() { if (!cfg.bereit) return; const roh = await window.api.laden(); data = Core.filterSichtbar(roh, cfg.nutzer); data.alle = roh.aufgaben; pruefeNeueZuweisungen(); render(); }
+async function aendern(id, patch) { try { await window.api.aendern(id, patch); } catch (e) { toast(fehlerText(e)); } await laden(); }
 
 // ---------- Detail ----------
 function oeffneDetail(id) {
@@ -190,7 +203,36 @@ function refreshDetail(erst) {
   const t = finde(detailId);
   if (!t) { detailId = null; $('pTask').hidden = true; return; }
   $('dStatus').value = t.status; $('dFaellig').value = t.faellig || ''; $('dHeute').checked = istHeute(t);
-  optionenWer($('dWer'), false, t.zugewiesenAn || '', t.zuordnung); $('dWer').value = t.zugewiesenAn || '';
+  // Zuständige: Mehrfachauswahl, nur Mitglieder des Projekts (bereits Zugewiesene bleiben sichtbar)
+  const wer = $('dWer'); wer.replaceChildren();
+  for (const n of new Set([...Core.werFuer(data.projekte, t.zuordnung, nutzerListe()), ...t.zugewiesenAn])) {
+    const an = t.zugewiesenAn.includes(n);
+    wer.append(el('button', { type: 'button', className: 'chip' + (an ? ' on' : ''), textContent: (an ? '✓ ' : '') + (n === cfg.nutzer ? n + ' (ich)' : n),
+      onclick: () => aendern(t.id, { zugewiesenAn: an ? t.zugewiesenAn.filter(x => x !== n) : [...t.zugewiesenAn, n] }) }));
+  }
+  // Abhängigkeiten
+  const dep = $('dDep'); dep.replaceChildren();
+  if (!t.abhaengigVon.length) dep.append(el('span', { className: 'hint', textContent: 'Keine' }));
+  for (const id of t.abhaengigVon) {
+    const x = alle().find(a => a.id === id);
+    dep.append(el('button', { type: 'button', className: 'chip on x', title: 'Entfernen', textContent: (x && x.status === 'done' ? '✓ ' : '⏳ ') + sichtName(id),
+      onclick: () => aendern(t.id, { abhaengigVon: t.abhaengigVon.filter(y => y !== id) }) }));
+  }
+  const kand = data.aufgaben.filter(a => a.id !== t.id && !t.abhaengigVon.includes(a.id) && !a.archiviert && !Core.bildetZyklus(t.id, a.id, alle()));
+  $('dDepAdd').replaceChildren(el('option', { value: '', textContent: 'Wartet auf … (Aufgabe hinzufügen)' }), ...kand.map(a => el('option', { value: a.id, textContent: a.titel })));
+  const offen = voraussetzungen(t);
+  $('dBlock').textContent = offen.length ? '🔒 Kann erst abgeschlossen werden, wenn erledigt: ' + offen.map(x => sichtName(x.id)).join(', ') : '';
+  $('dStatus').querySelector('option[value=done]').disabled = offen.length > 0;
+  // Teilschritte
+  const sb = $('dSchritte'); sb.replaceChildren();
+  const setze = liste => aendern(t.id, { schritte: liste });
+  for (const st of t.schritte) {
+    sb.append(el('div', { className: 'step' + (st.erledigt ? ' done' : '') },
+      el('input', { type: 'checkbox', checked: st.erledigt, onchange: e => setze(t.schritte.map(x => (x.id === st.id ? { ...x, erledigt: e.target.checked } : x))) }),
+      el('span', { textContent: st.titel, style: 'flex:1' }),
+      el('button', { type: 'button', textContent: '🗑', title: 'Schritt löschen', onclick: () => setze(t.schritte.filter(x => x.id !== st.id)) })));
+  }
+  const fp = Core.schrittFortschritt(t); $('dFort').textContent = fp.gesamt ? ' (' + fp.fertig + '/' + fp.gesamt + ')' : '';
   optionen($('dZu'), 'Ohne Zuordnung', t.zuordnung || '');
   $('dAblegen').checked = !!t.ablegen; $('dAblage').textContent = t.ablage ? 'Dateien abgelegt in: ' + t.ablage : '';
   $('dInfo').textContent = 'Angelegt von ' + t.erstelltVon + ', zuletzt geändert von ' + t.geaendertVon + '.';
@@ -205,7 +247,10 @@ function refreshDetail(erst) {
   }
 }
 const feld = (id, key, wert) => { $(id).onchange = () => aendern(detailId, { [key]: wert($(id)) }); };
-feld('dStatus', 'status', e => e.value); feld('dFaellig', 'faellig', e => e.value || null); feld('dWer', 'zugewiesenAn', e => e.value || null);
+feld('dStatus', 'status', e => e.value); feld('dFaellig', 'faellig', e => e.value || null);
+$('dDepAdd').onchange = () => { const v = $('dDepAdd').value; if (v) aendern(detailId, { abhaengigVon: [...finde(detailId).abhaengigVon, v] }); };
+const schrittNeu = () => { const v = $('dSchrittNeu').value.trim(); if (!v) return; $('dSchrittNeu').value = ''; aendern(detailId, { schritte: [...finde(detailId).schritte, { titel: v, erledigt: false }] }); };
+$('dSchrittAdd').onclick = schrittNeu; $('dSchrittNeu').onkeydown = e => { if (e.key === 'Enter') schrittNeu(); };
 feld('dAblegen', 'ablegen', e => e.checked); feld('dZu', 'zuordnung', e => e.value || null); feld('dHeute', 'heute', e => e.checked ? heuteStr() : null);
 $('dTitel').onchange = () => { const v = $('dTitel').value.trim(); if (v) aendern(detailId, { titel: v }); else $('dTitel').value = finde(detailId).titel; };
 $('dNotiz').onchange = () => aendern(detailId, { notiz: $('dNotiz').value });
@@ -232,7 +277,7 @@ function renderEingang() {
       el('button', { textContent: '🗑', title: 'Löschen', onclick: async () => { if (confirm('„' + n + '“ löschen?')) { await window.api.eingangLoeschen(n); await laden(); } } }),
       el('div', { className: 'row', style: 'flex:1 0 100%' }, sel,
         el('button', { className: 'go', textContent: 'Zuordnen', onclick: async () => { if (sel.value) { await window.api.eingangZuordnen(n, sel.value); await laden(); } } }),
-        el('button', { className: 'go', textContent: 'Neue Aufgabe', onclick: async () => { await window.api.eingangNeu(n, { zugewiesenAn: cfg.nutzer }); await laden(); } }))));
+        el('button', { className: 'go', textContent: 'Neue Aufgabe', onclick: async () => { await window.api.eingangNeu(n, { zugewiesenAn: [cfg.nutzer] }); await laden(); } }))));
   }
 }
 $('bIn').onclick = () => { if (!cfg.bereit) return; renderEingang(); $('pIn').hidden = false; };
@@ -270,7 +315,7 @@ function zeigeEinstellungen() {
 $('add').onsubmit = async e => {
   e.preventDefault();
   const titel = $('neuTitel').value.trim(); if (!titel) return;
-  await window.api.neu({ titel, zuordnung: $('neuZu').value || null, zugewiesenAn: $('neuWer').value || null,
+  await window.api.neu({ titel, zuordnung: $('neuZu').value || null, zugewiesenAn: $('neuWer').value ? [$('neuWer').value] : [],
     faellig: $('neuFaellig').value || null, heute: neuHeute || ansicht === 'heute' ? heuteStr() : null });
   $('neuTitel').value = ''; $('neuFaellig').value = ''; delete $('neuWer').dataset.gewaehlt; neuHeute = false; await laden();
 };
