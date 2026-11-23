@@ -81,6 +81,11 @@ class Store {
   // Dateien wie "abc (1).json" (Drive-Konfliktkopien) oder halb synchronisierte Dateien werden übersprungen.
   load() {
     this.applyCommands();
+    return this._lies();
+  }
+
+  // Liest alle Daten, ohne Befehlsdateien anzuwenden (update() braucht das, sonst läuft load -> applyCommands -> update -> load im Kreis).
+  _lies() {
     const aufgaben = [];
     for (const f of fs.readdirSync(this.tasksDir)) {
       if (!f.endsWith('.json') || !ID_RE.test(f.slice(0, -5))) continue;
@@ -121,7 +126,7 @@ class Store {
     const file = this._taskFile(id);
     const cur = readJson(file);
     if (!cur) throw new Error('Aufgabe nicht gefunden');
-    Core.pruefePatch(patch, Core.normalize({ ...cur }), this.load().aufgaben);   // Abhängigkeiten/Kreise prüfen
+    Core.pruefePatch(patch, Core.normalize({ ...cur }), this._lies().aufgaben);   // Abhängigkeiten/Kreise prüfen
     const t = Core.applyPatch(cur, patch, this.user);
     atomicWrite(file, t);
     return t;
@@ -206,7 +211,7 @@ class Store {
     if (cur && !Core.kannProjektBearbeiten(cur, this.user)) throw new Error('Nur ' + cur.besitzer + ' darf „' + cur.name + '“ löschen');
     p.projekte = p.projekte.filter(x => x.id !== id);
     atomicWrite(this.projFile, p);
-    for (const t of this.load().aufgaben) if (t.zuordnung === id) this.update(t.id, { zuordnung: null });
+    for (const t of this._lies().aufgaben) if (t.zuordnung === id) this.update(t.id, { zuordnung: null });
   }
 }
 

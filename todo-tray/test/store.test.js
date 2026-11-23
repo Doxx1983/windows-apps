@@ -122,8 +122,6 @@ assert.deepStrictEqual(Core.schrittFortschritt(tu), { fertig: 1, gesamt: 2 });
 assert.strictEqual(a.update(ts.id, { titel: 'Umzug 2' }).schritte.length, 2);        // andere Änderungen lassen Schritte unberührt
 a.remove(ts.id);
 
-console.log('Store-Tests OK');
-
 // Befehlsdateien: Änderung ohne Überschreiben der Aufgabendatei
 const bt = a.create({ titel: 'HA-Test' });
 fs.writeFileSync(path.join(dir, 'befehle', 'x1.json'), JSON.stringify({ id: bt.id, patch: { erledigt: true, titel: 'x', id: 'böse' } }));
@@ -134,3 +132,15 @@ const rb = b.load().aufgaben.find(x => x.id === bt.id);
 assert.strictEqual(rb.erledigt, true); assert.strictEqual(rb.status, 'done'); assert.strictEqual(rb.id, bt.id);
 assert.deepStrictEqual(fs.readdirSync(path.join(dir, 'befehle')), ['x3.json']);   // kaputte (halb synchronisierte) bleibt liegen
 assert.notStrictEqual(a.signature(), sigC);
+
+// Befehle unterliegen denselben Regeln (Abhängigkeit) und lösen keine Endlos-Rekursion aus
+const ba = a.create({ titel: 'Voraussetzung' }), bb = a.create({ titel: 'Folge' });
+fs.writeFileSync(path.join(dir, 'befehle', 'y1.json'), JSON.stringify({ id: bb.id, patch: { abhaengigVon: [ba.id], zugewiesenAn: ['Anna', 'Ben'] } }));
+let rr = b.load().aufgaben.find(x => x.id === bb.id);
+assert.deepStrictEqual(rr.abhaengigVon, [ba.id]); assert.deepStrictEqual(rr.zugewiesenAn, ['Anna', 'Ben']);
+fs.writeFileSync(path.join(dir, 'befehle', 'y2.json'), JSON.stringify({ id: bb.id, patch: { status: 'done' } }));
+rr = b.load().aufgaben.find(x => x.id === bb.id);
+assert.strictEqual(rr.status, 'todo');                                                  // blockiert: Befehl wirkungslos
+assert.deepStrictEqual(fs.readdirSync(path.join(dir, 'befehle')), ['x3.json']);         // aber abgearbeitet (Datei gelöscht)
+
+console.log('Store-Tests OK');
