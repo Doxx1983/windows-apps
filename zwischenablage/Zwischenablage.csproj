@@ -11,6 +11,7 @@
     <RootNamespace>Zwischenablage</RootNamespace>
     <AssemblyName>Zwischenablage</AssemblyName>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

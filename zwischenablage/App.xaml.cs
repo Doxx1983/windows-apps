@@ -133,11 +133,18 @@ public partial class App : Application
 
         _tray = new System.Windows.Forms.NotifyIcon
         {
-            Icon = MakeIcon(), Text = "Zwischenablage", Visible = true, ContextMenuStrip = menu
+            Icon = TrayIcon(), Text = "Zwischenablage", Visible = true, ContextMenuStrip = menu
         };
     }
 
     // Schlichtes Symbol: blaues Rechteck mit weißem „Klemmbrett“-Strich.
+    // Symbol der exe (icon.ico); falls das nicht klappt, das gezeichnete.
+    static System.Drawing.Icon TrayIcon()
+    {
+        try { return System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? MakeIcon(); }
+        catch { return MakeIcon(); }
+    }
+
     static System.Drawing.Icon MakeIcon()
     {
         using var bmp = new System.Drawing.Bitmap(32, 32);
