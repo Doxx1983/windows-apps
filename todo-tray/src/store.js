@@ -4,6 +4,7 @@
 //   dateien/<id>/...     Anhänge der Aufgabe
 //   projekte.json        Projekte und Chats
 //   nutzer.json          Namen der beiden Nutzer
+//   befehle/*.json       Änderungswünsche von außen (z. B. Claude): { "id": "<aufgabe>", "patch": {…} }, werden angewendet und gelöscht
 const fs = require('fs');
 const path = require('path');
 const Core = require('../shared/core');
@@ -33,11 +34,13 @@ class Store {
     this.tasksDir = path.join(dir, 'aufgaben');
     this.filesDir = path.join(dir, 'dateien');
     this.inboxDir = path.join(dir, 'eingang');
+    this.cmdDir = path.join(dir, 'befehle');
     this.projFile = path.join(dir, 'projekte.json');
     this.userFile = path.join(dir, 'nutzer.json');
     fs.mkdirSync(this.tasksDir, { recursive: true });
     fs.mkdirSync(this.filesDir, { recursive: true });
     fs.mkdirSync(this.inboxDir, { recursive: true });
+    fs.mkdirSync(this.cmdDir, { recursive: true });
     if (!fs.existsSync(this.projFile)) atomicWrite(this.projFile, { projekte: [] });
     this.registerUser(this.user);
   }
@@ -63,8 +66,21 @@ class Store {
     return u && Array.isArray(u.nutzer) ? u.nutzer : [];
   }
 
+  // Befehlsdateien (befehle/*.json) anwenden und löschen. Erlaubt Änderungen ohne Überschreiben von Aufgabendateien,
+  // z. B. durch Werkzeuge, die nur neue Dateien anlegen können. Nur die Felder aus Core.FIELDS werden übernommen.
+  applyCommands() {
+    for (const f of listFiles(this.cmdDir)) {
+      if (!f.endsWith('.json')) continue;
+      const file = path.join(this.cmdDir, f), c = readJson(file);
+      if (!c) continue;                                   // halb synchronisiert: später noch einmal
+      try { if (c && typeof c.id === 'string' && c.patch && typeof c.patch === 'object') this.update(c.id, c.patch); } catch { /* Aufgabe fehlt oder ungültig */ }
+      try { fs.unlinkSync(file); } catch { /* schon weg */ }
+    }
+  }
+
   // Dateien wie "abc (1).json" (Drive-Konfliktkopien) oder halb synchronisierte Dateien werden übersprungen.
   load() {
+    this.applyCommands();
     const aufgaben = [];
     for (const f of fs.readdirSync(this.tasksDir)) {
       if (!f.endsWith('.json') || !ID_RE.test(f.slice(0, -5))) continue;
@@ -91,7 +107,7 @@ class Store {
         } catch { /* weg */ }
       }
     };
-    scan(this.tasksDir, 't'); scan(this.dir, 'r'); scan(this.filesDir, 'd'); scan(this.inboxDir, 'd');
+    scan(this.tasksDir, 't'); scan(this.dir, 'r'); scan(this.filesDir, 'd'); scan(this.inboxDir, 'd'); scan(this.cmdDir, 'c');
     return parts.sort().join('|');
   }
 
