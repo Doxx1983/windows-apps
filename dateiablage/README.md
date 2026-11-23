@@ -8,6 +8,9 @@ Design wie Zwischenablage und Aufgaben-App (neutral, ein blauer Akzent, Hell/Dun
 - **Strg+Alt+D** öffnet bzw. schließt das Fenster. Auch: Klick auf das Tray-Symbol oder die App erneut starten.
 - **Hinzufügen:** Dateien, Ordner oder Links (aus dem Browser) ins Fenster ziehen. Auf eine Gruppe links ziehen = direkt in diese Gruppe.
   Oder **Strg+V** (kopierte Dateien bzw. kopierte Webadresse) oder die Knöpfe „+ Dateien …“ / „+ Ordner …“.
+- **Programme:** „+ Programm …“ bzw. **Strg+P** zeigt alle installierten Programme wie im Startmenü, auch Store-Apps
+  (Rechner, Fotos, WhatsApp …) und Web-Apps aus dem Browser. Suchen, auswählen (mehrere mit Strg+Klick), hinzufügen.
+  Gespeichert wird die App-ID aus dem Windows-Ordner „Apps“ (`shell:AppsFolder\…`). Deinstallierte Programme erscheinen blass.
 - **Öffnen:** Doppelklick oder **Enter**; danach blendet sich das Fenster aus. **Strg+Enter** zeigt die Datei im Explorer.
 - **Suchen:** einfach lostippen, sucht in allen Gruppen (Name, Pfad, Gruppe; mehrere Wörter möglich).
 - **Gruppen:** „+ Neue Gruppe“ bzw. **Strg+N**, **Strg+1 … 9** wechselt. Rechtsklick: umbenennen, verschieben, löschen.

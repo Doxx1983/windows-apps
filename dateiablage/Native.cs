@@ -26,8 +26,16 @@ static class Native
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)] public string szTypeName;
     }
 
+    public const uint SHGFI_PIDL = 0x8;
+
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr SHGetFileInfo(string path, uint attr, ref SHFILEINFO info, uint size, uint flags);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr SHGetFileInfo(IntPtr pidl, uint attr, ref SHFILEINFO info, uint size, uint flags);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern int SHParseDisplayName(string name, IntPtr bindCtx, out IntPtr pidl, uint sfgaoIn, out uint sfgaoOut);
 
     /// <summary>Dunkle Titelleiste (Windows 10 20H1+ / 11).</summary>
     public static void DarkTitleBar(IntPtr hwnd)

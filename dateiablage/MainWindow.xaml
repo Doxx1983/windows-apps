@@ -140,11 +140,14 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Button Style="{StaticResource Flat}" Content="+ Dateien …" Click="AddFiles_Click" />
                 <Button Grid.Column="1" Style="{StaticResource Flat}" Content="+ Ordner …" Margin="6,0,0,0" Click="AddFolder_Click" />
-                <TextBlock x:Name="Status" Grid.Column="2" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="11"
+                <Button Grid.Column="2" Style="{StaticResource Flat}" Content="+ Programm …" Margin="6,0,0,0"
+                        Click="AddApp_Click" ToolTip="Installierte Programme und Store-Apps (Strg+P)" />
+                <TextBlock x:Name="Status" Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="11"
                            Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Grid>

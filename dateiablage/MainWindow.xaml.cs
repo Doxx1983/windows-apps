@@ -129,14 +129,17 @@ public partial class MainWindow : Window
         e.Check();
         if (e.Missing)
         {
-            var r = MessageBox.Show(this, $"„{e.Name}“ wurde nicht gefunden:\n{e.Target}\n\nWurde sie verschoben oder umbenannt? Neuen Ort auswählen?",
-                                    "Dateiablage", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            var msg = e.IsApp
+                ? $"„{e.Name}“ ist offenbar nicht mehr installiert.\n\nAnderes Programm wählen?"
+                : $"„{e.Name}“ wurde nicht gefunden:\n{e.Target}\n\nWurde sie verschoben oder umbenannt? Neuen Ort auswählen?";
+            var r = MessageBox.Show(this, msg, "Dateiablage", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (r == MessageBoxResult.Yes) Relink(e);
             return;
         }
         try
         {
-            if (reveal && !e.IsUrl) Process.Start("explorer.exe", $"/select,\"{e.Target}\"");
+            if (e.IsApp) Process.Start(new ProcessStartInfo("explorer.exe", "\"" + e.Target + "\""));
+            else if (reveal && !e.IsUrl) Process.Start("explorer.exe", $"/select,\"{e.Target}\"");
             else Process.Start(new ProcessStartInfo(e.Target) { UseShellExecute = true });
             Hide();
         }
@@ -152,7 +155,12 @@ public partial class MainWindow : Window
         string? start = NearestFolder(e.Target);
         string? picked = null;
         bool folder = !e.IsUrl && (Directory.Exists(e.Target) || Path.GetExtension(e.Target).Length == 0);
-        if (e.IsUrl)
+        if (e.IsApp)
+        {
+            var p = new AppPickerWindow(false) { Owner = this };
+            if (p.ShowDialog() == true) picked = p.Selected[0].Target;
+        }
+        else if (e.IsUrl)
         {
             picked = Prompt("Adresse ändern", "Webadresse:", e.Target);
             if (picked != null && !Store.IsUrl(picked)) { Say("Keine gültige Adresse (http… oder https…)."); return; }
@@ -248,6 +256,26 @@ public partial class MainWindow : Window
         if (d.ShowDialog(this) == true) AddTargets(d.FileNames);
     }
 
+    void AddApp_Click(object sender, RoutedEventArgs e) => AddApps();
+
+    void AddApps()
+    {
+        var g = CurrentGroup;
+        if (g == null) return;
+        var p = new AppPickerWindow(true) { Owner = this };
+        if (p.ShowDialog() != true) return;
+        var added = _store.AddNamed(g, p.Selected.Select(a => ((string?)a.Name, a.Target)));
+        if (Searching) Search.Text = "";
+        RefreshGroups(g);
+        RefreshEntries(added.LastOrDefault());
+        Say(added.Count switch
+        {
+            0 => "Ist schon in dieser Gruppe.",
+            1 => $"„{added[0].Name}“ zu {g.Name} hinzugefügt.",
+            _ => $"{added.Count} Programme zu {g.Name} hinzugefügt."
+        });
+    }
+
     void AddFolder_Click(object sender, RoutedEventArgs e)
     {
         var d = new Microsoft.Win32.OpenFolderDialog { Title = "Ordner hinzufügen", Multiselect = true };
@@ -341,10 +369,11 @@ public partial class MainWindow : Window
         if (FindItem(e.OriginalSource as DependencyObject) == null || CurrentEntry is not { } en) { e.Handled = true; return; }
 
         menu.Items.Add(Item("Öffnen", () => Open(en, false), "Enter"));
-        if (!en.IsUrl) menu.Items.Add(Item("Im Ordner zeigen", () => Open(en, true), "Strg+Enter"));
+        if (!en.IsUrl && !en.IsApp) menu.Items.Add(Item("Im Ordner zeigen", () => Open(en, true), "Strg+Enter"));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Umbenennen", () => RenameEntry(en), "F2"));
-        menu.Items.Add(Item(en.IsUrl ? "Adresse ändern …" : "Neuen Ort zuordnen …", () => Relink(en)));
+        menu.Items.Add(Item(en.IsApp ? "Anderes Programm wählen …" : en.IsUrl ? "Adresse ändern …" : "Neuen Ort zuordnen …",
+                            () => Relink(en)));
 
         var move = new MenuItem { Header = "Verschieben nach" };
         foreach (var g in _store.Data.Groups)
@@ -428,6 +457,7 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.N when ctrl: NewGroup(); e.Handled = true; break;
+            case Key.P when ctrl: AddApps(); e.Handled = true; break;
             case Key.F when ctrl: Search.Focus(); Search.SelectAll(); e.Handled = true; break;
             case Key.V when ctrl:
                 var t = TargetsFrom(Clipboard.GetDataObject());

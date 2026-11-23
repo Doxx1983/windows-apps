@@ -23,6 +23,7 @@ public class Entry
     [JsonIgnore] public bool ShowGroup { get; set; }
 
     [JsonIgnore] public bool IsUrl => Store.IsUrl(Target);
+    [JsonIgnore] public bool IsApp => Store.IsShell(Target);
     [JsonIgnore] public double Opacity => Missing ? 0.5 : 1.0;
     [JsonIgnore] public ImageSource? Icon => ShellIcon.Get(Target, IsUrl, Missing);
 
@@ -31,12 +32,14 @@ public class Entry
     {
         get
         {
-            var s = Missing ? "Nicht gefunden: " + Target : Target;
+            var s = IsApp ? (Missing ? "Nicht mehr installiert" : Store.AppKind(Target))
+                          : (Missing ? "Nicht gefunden: " + Target : Target);
             return ShowGroup && Group != null ? Group.Name + "  ·  " + s : s;
         }
     }
 
-    public void Check() => Missing = !IsUrl && !File.Exists(Target) && !Directory.Exists(Target);
+    public void Check() => Missing = IsApp ? !ShellIcon.ShellItemExists(Target)
+                                           : !IsUrl && !File.Exists(Target) && !Directory.Exists(Target);
 }
 
 public class Group
@@ -116,8 +119,23 @@ public class Store
     public static bool IsUrl(string s) =>
         s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || s.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Installierte Programme und Store-Apps: „shell:AppsFolder\&lt;App-ID&gt;“.</summary>
+    public static bool IsShell(string s) => s.StartsWith("shell:", StringComparison.OrdinalIgnoreCase);
+
+    public static string AppKind(string target)
+    {
+        var id = target.StartsWith(AppsPrefix, StringComparison.OrdinalIgnoreCase) ? target[AppsPrefix.Length..] : target;
+        if (id.Contains("_crx_", StringComparison.OrdinalIgnoreCase)) return "Web-App (Browser)";
+        if (id.StartsWith("steam://", StringComparison.OrdinalIgnoreCase)) return "Steam";
+        if (id.Contains('!')) return "Store-App";
+        return "Programm";
+    }
+
+    public const string AppsPrefix = @"shell:AppsFolder\";
+
     public static string NameFor(string path)
     {
+        if (IsShell(path)) return path[(path.LastIndexOf('\\') + 1)..];
         if (IsUrl(path))
         {
             if (!Uri.TryCreate(path, UriKind.Absolute, out var u)) return path;
@@ -134,16 +152,20 @@ public class Store
     }
 
     /// <summary>Fügt Dateien/Ordner/Adressen hinzu; schon vorhandene werden übersprungen. Liefert die neuen Einträge.</summary>
-    public List<Entry> Add(Group g, IEnumerable<string> targets)
+    public List<Entry> Add(Group g, IEnumerable<string> targets) =>
+        AddNamed(g, targets.Select(t => ((string?)null, t)));
+
+    /// <summary>Wie <see cref="Add"/>, mit vorgegebenem Anzeigenamen (null = automatisch).</summary>
+    public List<Entry> AddNamed(Group g, IEnumerable<(string? Name, string Target)> items)
     {
         var added = new List<Entry>();
-        foreach (var raw in targets)
+        foreach (var (name, raw) in items)
         {
             var t = raw.Trim();
             if (t.Length == 0) continue;
-            if (!IsUrl(t)) { try { t = Path.GetFullPath(t); } catch { continue; } }
+            if (!IsUrl(t) && !IsShell(t)) { try { t = Path.GetFullPath(t); } catch { continue; } }
             if (g.Entries.Any(e => string.Equals(e.Target, t, StringComparison.OrdinalIgnoreCase))) continue;
-            var en = new Entry { Name = NameFor(t), Target = t, Group = g };
+            var en = new Entry { Name = string.IsNullOrWhiteSpace(name) ? NameFor(t) : name.Trim(), Target = t, Group = g };
             g.Entries.Add(en);
             added.Add(en);
         }
@@ -216,6 +238,12 @@ static class ShellIcon
 
     public static ImageSource? Get(string target, bool isUrl, bool missing)
     {
+        if (Store.IsShell(target))
+        {
+            if (Cache.TryGetValue(target, out var app)) return app;
+            return Cache[target] = FromShellItem(target) ?? Get("x.exe", false, true);
+        }
+
         string key, path;
         uint attr = Native.FILE_ATTRIBUTE_NORMAL, flags = Native.SHGFI_ICON;
         var ext = isUrl ? "" : Path.GetExtension(target);
@@ -237,16 +265,43 @@ static class ShellIcon
         {
             var info = new Native.SHFILEINFO();
             Native.SHGetFileInfo(path, attr, ref info, (uint)Marshal.SizeOf(info), flags);
-            if (info.hIcon != IntPtr.Zero)
-            {
-                var bs = Imaging.CreateBitmapSourceFromHIcon(info.hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                bs.Freeze();
-                img = bs;
-                Native.DestroyIcon(info.hIcon);
-            }
+            img = ToImage(info.hIcon);
         }
         catch { }
         Cache[key] = img;
         return img;
+    }
+
+    static ImageSource? ToImage(IntPtr hIcon)
+    {
+        if (hIcon == IntPtr.Zero) return null;
+        try
+        {
+            var bs = Imaging.CreateBitmapSourceFromHIcon(hIcon, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            bs.Freeze();
+            return bs;
+        }
+        finally { Native.DestroyIcon(hIcon); }
+    }
+
+    /// <summary>Symbol eines Shell-Elements (z. B. Store-App) über seine PIDL.</summary>
+    static ImageSource? FromShellItem(string parsingName)
+    {
+        if (Native.SHParseDisplayName(parsingName, IntPtr.Zero, out var pidl, 0, out _) != 0 || pidl == IntPtr.Zero) return null;
+        try
+        {
+            var info = new Native.SHFILEINFO();
+            Native.SHGetFileInfo(pidl, 0, ref info, (uint)Marshal.SizeOf(info), Native.SHGFI_ICON | Native.SHGFI_PIDL);
+            return ToImage(info.hIcon);
+        }
+        catch { return null; }
+        finally { Marshal.FreeCoTaskMem(pidl); }
+    }
+
+    public static bool ShellItemExists(string parsingName)
+    {
+        if (Native.SHParseDisplayName(parsingName, IntPtr.Zero, out var pidl, 0, out _) != 0 || pidl == IntPtr.Zero) return false;
+        Marshal.FreeCoTaskMem(pidl);
+        return true;
     }
 }
