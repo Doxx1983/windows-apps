@@ -6,3 +6,4 @@ Sammel-Repo für lokale Windows-Apps. Pro App ein Ordner (`todo-tray/`, …) mit
 - Keine Verweise auf andere Projekte/Marken (z. B. Isadody) in den Apps, solange nicht ausdrücklich gewünscht.
 - Änderungen testen (`npm test` in der App; Oberfläche mit Playwright, Chromium unter `/opt/pw-browsers/chromium`).
 - Entwicklungsbranch pushen; `main` nur auf ausdrückliche Anweisung aktualisieren.
+- Commits: Alles, was zu einem Auftrag gehört (Code, Tests, README, Workflow), kommt in **einen** Commit auf einmal, nicht in mehreren Teil-Commits. Vorher alles testen; erst dann committen und pushen.
