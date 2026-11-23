@@ -50,18 +50,33 @@ const { Store } = require('../src/store');
   new Store(dir, 'Ben').create({ titel: 'Von Ben' }); await page.selectOption('#filter', ''); await page.evaluate(() => window.api.__cb());
   await page.waitForTimeout(200);
   assert.ok((await page.locator('.task').allTextContents()).some(t => t.includes('Von Ben')));
-  // Zuweisen, Fälligkeit, Status, Dateien über das Detailfenster
-  await page.click('nav button:has-text("Offen")'); await page.locator('.task .t', { hasText: 'Garn bestellen' }).click();
+  // Detail = Entwurf: Änderungen gelten erst mit "Speichern", "Zurück" verwirft sie
+  const gbRow = () => page.locator('.task .t', { hasText: 'Garn bestellen' });
+  await page.click('nav button:has-text("Offen")');
+  await gbRow().click(); await page.click('#dZurueck'); assert.ok(await page.locator('#pTask').isHidden());       // nichts geändert: ohne Rückfrage zurück
+  await gbRow().click();
   await page.locator('#dWer .chip', { hasText: 'Ben' }).click(); await page.fill('#dFaellig', '2020-01-01'); await page.dispatchEvent('#dFaellig', 'change');
-  await page.selectOption('#dStatus', 'doing');
+  await page.selectOption('#dStatus', 'doing'); await page.check('#dAblegen');
   let gb = store.load().aufgaben.find(t => t.titel === 'Garn bestellen');
-  assert.deepStrictEqual(gb.zugewiesenAn, ['Anna', 'Ben']);   // mehrere Zuständige assert.strictEqual(gb.faellig, '2020-01-01'); assert.strictEqual(gb.status, 'doing');
-  const f = path.join(dir, 'angebot.pdf'); fs.writeFileSync(f, 'x');
-  await page.evaluate(([id, p]) => window.api.dateiHinzu(id, [p]), [gb.id, f]); await page.evaluate(() => window.api.__cb()); await page.waitForTimeout(200);
+  assert.deepStrictEqual(gb.zugewiesenAn, ['Anna']); assert.notStrictEqual(gb.status, 'doing'); assert.strictEqual(gb.ablegen, false);   // noch nichts gespeichert
+  assert.ok(await page.locator('#dDirty').isVisible());
+  const shot = async (n, y) => { await page.evaluate(v => document.getElementById('pTask').scrollTo(0, v), y); await page.screenshot({ path: path.join(process.argv[2] || require('os').tmpdir(), n) }); };
+  await shot('ui-detail-top.png', 0); await shot('ui-detail-bottom.png', 99999);
+  page.once('dialog', d => d.dismiss()); await page.click('#dZurueck');                                           // Rückfrage abgelehnt: bleibt offen, Entwurf bleibt
+  assert.ok(await page.locator('#pTask').isVisible()); assert.strictEqual(await page.locator('#dStatus').inputValue(), 'doing');
+  page.once('dialog', d => d.accept()); await page.click('#dZurueck');                                            // Rückfrage bestätigt: verworfen
+  assert.ok(await page.locator('#pTask').isHidden());
+  gb = store.load().aufgaben.find(t => t.titel === 'Garn bestellen'); assert.deepStrictEqual(gb.zugewiesenAn, ['Anna']); assert.notStrictEqual(gb.status, 'doing');
+  await gbRow().click(); assert.strictEqual(await page.locator('#dStatus').inputValue(), 'todo');                   // Entwurf ist weg
+  await page.locator('#dWer .chip', { hasText: 'Ben' }).click(); await page.fill('#dFaellig', '2020-01-01'); await page.dispatchEvent('#dFaellig', 'change');
+  await page.selectOption('#dStatus', 'doing'); await page.check('#dAblegen');
+  const f = path.join(dir, 'angebot.pdf'); fs.writeFileSync(f, 'x');                                              // Dateien wirken sofort (auch ohne Speichern)
+  await page.evaluate(([id, p]) => window.api.dateiHinzu(id, [p]), [gb.id, f]); await page.evaluate(() => window.api.__cb()); await page.waitForTimeout(250);
   assert.ok((await page.locator('#dDateien').textContent()).includes('angebot.pdf'));
-  await page.check('#dAblegen'); await page.waitForTimeout(150);
-  assert.strictEqual(store.load().aufgaben.find(t => t.id === gb.id).ablegen, true);
-  await page.click('#dOk');
+  assert.strictEqual(await page.locator('#dStatus').inputValue(), 'doing');                                       // Entwurf überlebt das Neuladen
+  await page.click('#dOk'); await page.waitForTimeout(250);
+  gb = store.load().aufgaben.find(t => t.titel === 'Garn bestellen');
+  assert.deepStrictEqual(gb.zugewiesenAn, ['Anna', 'Ben']); assert.strictEqual(gb.faellig, '2020-01-01'); assert.strictEqual(gb.status, 'doing'); assert.strictEqual(gb.ablegen, true);
   assert.ok((await page.locator('.tag.late').count()) >= 1);                  // überfällig markiert
   // Abhängigkeit: B wartet auf A -> kann nicht abgehakt werden, bis A erledigt ist; Teilschritte
   const sa = store.create({ titel: 'Erst A' }), sbb = store.create({ titel: 'Dann B' }); store.update(sbb.id, { abhaengigVon: [sa.id] });
@@ -75,14 +90,17 @@ const { Store } = require('../src/store');
   await page.fill('#dSchrittNeu', 'Kartons'); await page.press('#dSchrittNeu', 'Enter'); await page.waitForTimeout(150);
   await page.fill('#dSchrittNeu', 'Transporter'); await page.press('#dSchrittNeu', 'Enter'); await page.waitForTimeout(150);
   await page.locator('#dSchritte .step').first().locator('input').check(); await page.waitForTimeout(150);
-  assert.deepStrictEqual(store.load().aufgaben.find(t => t.id === sbb.id).schritte.map(x => [x.titel, x.erledigt]), [['Kartons', true], ['Transporter', false]]);
+  assert.strictEqual(store.load().aufgaben.find(t => t.id === sbb.id).schritte.length, 0);                  // noch Entwurf
   assert.strictEqual(await page.locator('#dFort').textContent(), ' (1/2)');
   await page.selectOption('#dDepAdd', { label: 'Garn bestellen' }); await page.waitForTimeout(150);        // zweite Voraussetzung
-  assert.strictEqual(store.load().aufgaben.find(t => t.id === sbb.id).abhaengigVon.length, 2);
+  assert.strictEqual(await page.locator('#dDep .chip').count(), 2);
   assert.ok(!(await page.locator('#dDepAdd option').allTextContents()).includes('Dann B'));                // nicht von sich selbst
   await page.screenshot({ path: path.join(process.argv[2] || require('os').tmpdir(), 'ui-detail.png') });
   await page.locator('#dDep .chip', { hasText: 'Garn bestellen' }).click(); await page.waitForTimeout(150);   // wieder entfernen
-  await page.click('#dOk');
+  assert.strictEqual(await page.locator('#dDep .chip').count(), 1);
+  await page.click('#dOk'); await page.waitForTimeout(250);
+  const gespeichert = store.load().aufgaben.find(t => t.id === sbb.id);
+  assert.deepStrictEqual(gespeichert.schritte.map(x => [x.titel, x.erledigt]), [['Kartons', true], ['Transporter', false]]); assert.strictEqual(gespeichert.abhaengigVon.length, 1);
   await page.locator('.task', { has: page.locator('.t', { hasText: /^Erst A$/ }) }).locator('.box').click(); await page.waitForTimeout(250);   // A erledigt -> B frei
   assert.strictEqual(await page.locator('.task', { hasText: 'Dann B' }).locator('.tag.blk').count(), 0);
   await page.locator('.task', { hasText: 'Dann B' }).locator('.box').click(); await page.waitForTimeout(250);
@@ -93,6 +111,9 @@ const { Store } = require('../src/store');
   await page.evaluate(() => window.api.__cb()); await page.waitForTimeout(250);
   await page.locator('.task .t', { hasText: 'Zum Abschließen' }).click();
   assert.strictEqual(await page.locator('#dOk').textContent(), 'Speichern');
+  await page.fill('#dTitel', 'Verworfen'); page.once('dialog', d => d.accept()); await page.keyboard.press('Escape');     // Esc = Zurück
+  assert.ok(await page.locator('#pTask').isHidden()); assert.strictEqual(store.load().aufgaben.find(t => t.id === sz.id).titel, 'Zum Abschließen');
+  await page.locator('.task .t', { hasText: 'Zum Abschließen' }).click();
   await page.fill('#dTitel', 'Neuer Titel'); await page.fill('#dNotiz', 'Notiz dazu');   // ohne das Feld zu verlassen
   await page.click('#dOk'); await page.waitForTimeout(250);
   assert.ok(await page.locator('#pTask').isHidden());

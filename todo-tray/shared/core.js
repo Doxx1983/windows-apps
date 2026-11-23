@@ -72,7 +72,7 @@
   function pruefePatch(patch, task, alle) {
     const wirdFertig = ('status' in patch && patch.status === 'done') || patch.erledigt === true;
     if (wirdFertig && task.status !== 'done') {
-      const offen = offeneVoraussetzungen(task, alle);
+      const offen = offeneVoraussetzungen({ abhaengigVon: 'abhaengigVon' in patch ? idListe(patch.abhaengigVon, task.id) : task.abhaengigVon }, alle);
       if (offen.length) throw new Error('Wartet noch auf: ' + offen.map(x => x.titel).join(', '));
     }
     if ('abhaengigVon' in patch) {

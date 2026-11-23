@@ -84,6 +84,8 @@
   .box.gesperrt { border-style:dashed; font-size:12px; }
   .sec { font-weight:700; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
   .go.ok { background:var(--ok); color:#fff; } .go:disabled { opacity:.45; }
+  .back { align-self:flex-start; text-align:left; color:var(--muted); font-weight:600; padding:4px 10px; margin-left:-10px; border-radius:8px; } .back:hover { background:var(--surface2); color:var(--text); }
+  #dDirty { color:var(--doing); font-weight:600; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -123,6 +125,7 @@
   </section>
 
   <section class="panel" id="pTask" hidden>
+    <button type="button" class="back" id="dZurueck" title="Zurück ohne Speichern (Esc)">← Zurück</button>
     <h2>Aufgabe</h2>
     <label>Titel<input type="text" id="dTitel"></label>
     <label>Notiz<textarea id="dNotiz" rows="3"></textarea></label>
@@ -147,6 +150,7 @@
     <input type="file" id="fFoto" accept="image/*" capture="environment" hidden>
     <input type="file" id="fDatei" multiple hidden>
     <p class="hint" id="dInfo"></p>
+    <p class="hint" id="dDirty" hidden>● Ungespeicherte Änderungen – mit „Speichern“ übernehmen, mit „Zurück“ verwerfen.</p>
     <div class="r" style="flex-wrap:wrap"><button class="go" type="button" id="dOk">Speichern</button><button class="go ok" type="button" id="dAbschluss">Aufgabe abschließen</button><button class="ghost" type="button" id="dArch">Archivieren</button></div>
   </section>
 

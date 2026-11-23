@@ -85,7 +85,10 @@
   .step button { color:var(--muted); } .tag.blk { background:color-mix(in srgb, var(--doing) 18%, transparent); color:var(--doing); }
   .box.gesperrt { border-style:dashed; font-size:10px; cursor:not-allowed; }
   #toast { position:fixed; left:12px; right:12px; bottom:12px; background:var(--text); color:var(--bg); padding:10px 14px; border-radius:10px; z-index:20; font-size:.88rem; box-shadow:var(--shadow); }
+  .go.sec { background:var(--surface2); color:var(--text); }
   .go.ok { background:var(--ok); color:#fff; } .go:disabled { opacity:.45; cursor:not-allowed; filter:none; }
+  .back { align-self:flex-start; text-align:left; color:var(--muted); font-weight:600; padding:4px 10px; margin-left:-10px; border-radius:8px; } .back:hover { background:var(--surface2); color:var(--text); }
+  #dDirty { color:var(--doing); font-weight:600; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -120,6 +123,7 @@
   <div class="board" id="board" hidden></div>
 
   <section class="panel" id="pTask" hidden>
+    <button type="button" class="back" id="dZurueck" title="Zurück ohne Speichern (Esc)">← Zurück</button>
     <h2>Aufgabe</h2>
     <label>Titel<input type="text" id="dTitel"></label>
     <label>Notiz<textarea id="dNotiz" rows="3"></textarea></label>
@@ -141,9 +145,10 @@
     <div class="sec">Dateien</div>
     <div id="dDateien" style="display:flex;flex-direction:column;gap:6px"></div>
     <div class="drop" id="dDrop">Dateien hierher ziehen oder <button type="button" class="go" id="dAdd" style="padding:4px 12px">auswählen</button></div>
-    <p class="hint">Dateien liegen im gemeinsamen Ordner unter <b>dateien/</b> und sind für beide sichtbar.</p>
+    <p class="hint">Dateien liegen im gemeinsamen Ordner unter <b>dateien/</b> und sind für beide sichtbar. Hinzufügen und Löschen wirken sofort, ohne „Speichern“.</p>
     <p class="hint" id="dInfo"></p>
-    <div class="row" style="flex-wrap:wrap"><button class="go" type="button" id="dOk">Speichern</button><button class="go ok" type="button" id="dAbschluss">Aufgabe abschließen</button><button type="button" class="icon" id="dArch" style="width:auto;padding:0 12px">Archivieren</button></div>
+    <p class="hint" id="dDirty" hidden>● Ungespeicherte Änderungen – mit „Speichern“ übernehmen, mit „Zurück“ verwerfen.</p>
+    <div class="row" style="flex-wrap:wrap"><button class="go" type="button" id="dOk">Speichern</button><button class="go ok" type="button" id="dAbschluss">Aufgabe abschließen</button><button type="button" class="go sec" id="dArch">Archivieren</button></div>
   </section>
 
   <section class="panel" id="pIn" hidden>

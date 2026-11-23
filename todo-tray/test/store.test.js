@@ -113,6 +113,13 @@ a.update(v2.id, { abhaengigVon: ['gibt-es-nicht'] });                           
 a.update(v2.id, { status: 'todo' }); assert.strictEqual(a.update(v2.id, { status: 'done' }).status, 'done');
 b.remove(v1.id); b.remove(v2.id); b.remove(v3.id);
 
+// Status "done" und neue offene Voraussetzung im selben Speichern: abgelehnt
+const w1 = a.create({ titel: 'Offene Sache' }), w2 = a.create({ titel: 'Will fertig werden' });
+assert.throws(() => a.update(w2.id, { abhaengigVon: [w1.id], status: 'done' }), /Wartet noch auf: Offene Sache/);
+assert.strictEqual(a.load().aufgaben.find(x => x.id === w2.id).status, 'todo');
+assert.strictEqual(a.update(w2.id, { abhaengigVon: [], status: 'done' }).status, 'done');   // ohne die Voraussetzung geht es
+a.remove(w1.id); a.remove(w2.id);
+
 // Teilschritte
 const ts = a.create({ titel: 'Umzug' });
 let tu = a.update(ts.id, { schritte: [{ titel: 'Kartons' }, { titel: ' ', erledigt: true }, { titel: 'Transporter', erledigt: true }, { kaputt: 1 }] });

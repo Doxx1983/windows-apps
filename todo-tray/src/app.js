@@ -192,23 +192,41 @@ function pruefeNeueZuweisungen() {
 async function laden() { if (!cfg.bereit) return; const roh = await window.api.laden(); data = Core.filterSichtbar(roh, cfg.nutzer); data.alle = roh.aufgaben; pruefeNeueZuweisungen(); render(); }
 async function aendern(id, patch) { let ok = true; try { await window.api.aendern(id, patch); } catch (e) { toast(fehlerText(e)); ok = false; } await laden(); return ok; }
 
-// ---------- Detail ----------
+// ---------- Detail (Entwurf: Änderungen gelten erst mit "Speichern", "Zurück" verwirft sie; Dateien wirken sofort) ----------
+let entwurf = {};
+const effektiv = t => ({ ...t, ...entwurf });                 // gespeicherte Aufgabe + ungespeicherte Änderungen
+const geaendert = () => Object.keys(entwurf).length > 0;
+const gleich = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function setzeEntwurf(key, wert) {
+  const t = finde(detailId); if (!t) return;
+  if (gleich(wert, key === 'notiz' ? (t.notiz || '') : t[key])) delete entwurf[key]; else entwurf[key] = wert;   // zurück auf den alten Wert = keine Änderung
+  refreshDetail();
+}
+const schliesseDetail = () => { detailId = null; entwurf = {}; $('pTask').hidden = true; };
 function oeffneDetail(id) {
   const t = finde(id); if (!t) return;
-  detailId = id;
+  detailId = id; entwurf = {};
   $('dTitel').value = t.titel; $('dNotiz').value = t.notiz || '';
-  $('pTask').hidden = false; refreshDetail(true);
+  $('pTask').hidden = false; refreshDetail();
 }
-function refreshDetail(erst) {
-  const t = finde(detailId);
-  if (!t) { detailId = null; $('pTask').hidden = true; return; }
+function refreshDetail() {
+  const t0 = finde(detailId);
+  if (!t0) { schliesseDetail(); return; }
+  const t = effektiv(t0);
+  const offen = Core.offeneVoraussetzungen(t, alle()), gesperrt = t0.status !== 'done' && offen.length > 0;
   $('dStatus').value = t.status; $('dFaellig').value = t.faellig || ''; $('dHeute').checked = istHeute(t);
+  optionen($('dZu'), 'Ohne Zuordnung', t.zuordnung || '');
+  $('dAblegen').checked = !!t.ablegen; $('dAblage').textContent = t0.ablage ? 'Dateien abgelegt in: ' + t0.ablage : '';
+  $('dInfo').textContent = 'Angelegt von ' + t0.erstelltVon + ', zuletzt geändert von ' + t0.geaendertVon + '.';
+  $('dArch').textContent = t0.archiviert ? 'Zurückholen' : 'Archivieren';
+  $('dAbschluss').textContent = t0.status === 'done' ? 'Wieder öffnen' : 'Aufgabe abschließen';
+  $('dAbschluss').disabled = gesperrt; $('dAbschluss').title = gesperrt ? 'Wartet noch auf: ' + offen.map(x => sichtName(x.id)).join(', ') : '';
   // Zuständige: Mehrfachauswahl, nur Mitglieder des Projekts (bereits Zugewiesene bleiben sichtbar)
   const wer = $('dWer'); wer.replaceChildren();
   for (const n of new Set([...Core.werFuer(data.projekte, t.zuordnung, nutzerListe()), ...t.zugewiesenAn])) {
     const an = t.zugewiesenAn.includes(n);
     wer.append(el('button', { type: 'button', className: 'chip' + (an ? ' on' : ''), textContent: (an ? '✓ ' : '') + (n === cfg.nutzer ? n + ' (ich)' : n),
-      onclick: () => aendern(t.id, { zugewiesenAn: an ? t.zugewiesenAn.filter(x => x !== n) : [...t.zugewiesenAn, n] }) }));
+      onclick: () => setzeEntwurf('zugewiesenAn', an ? t.zugewiesenAn.filter(x => x !== n) : [...t.zugewiesenAn, n]) }));
   }
   // Abhängigkeiten
   const dep = $('dDep'); dep.replaceChildren();
@@ -216,16 +234,15 @@ function refreshDetail(erst) {
   for (const id of t.abhaengigVon) {
     const x = alle().find(a => a.id === id);
     dep.append(el('button', { type: 'button', className: 'chip on x', title: 'Entfernen', textContent: (x && x.status === 'done' ? '✓ ' : '⏳ ') + sichtName(id),
-      onclick: () => aendern(t.id, { abhaengigVon: t.abhaengigVon.filter(y => y !== id) }) }));
+      onclick: () => setzeEntwurf('abhaengigVon', t.abhaengigVon.filter(y => y !== id)) }));
   }
   const kand = data.aufgaben.filter(a => a.id !== t.id && !t.abhaengigVon.includes(a.id) && !a.archiviert && !Core.bildetZyklus(t.id, a.id, alle()));
   $('dDepAdd').replaceChildren(el('option', { value: '', textContent: 'Wartet auf … (Aufgabe hinzufügen)' }), ...kand.map(a => el('option', { value: a.id, textContent: a.titel })));
-  const offen = voraussetzungen(t);
-  $('dBlock').textContent = offen.length ? '🔒 Kann erst abgeschlossen werden, wenn erledigt: ' + offen.map(x => sichtName(x.id)).join(', ') : '';
-  $('dStatus').querySelector('option[value=done]').disabled = offen.length > 0;
+  $('dBlock').textContent = gesperrt ? '🔒 Kann erst abgeschlossen werden, wenn erledigt: ' + offen.map(x => sichtName(x.id)).join(', ') : '';
+  $('dStatus').querySelector('option[value=done]').disabled = gesperrt;
   // Teilschritte
   const sb = $('dSchritte'); sb.replaceChildren();
-  const setze = liste => aendern(t.id, { schritte: liste });
+  const setze = liste => setzeEntwurf('schritte', liste);
   for (const st of t.schritte) {
     sb.append(el('div', { className: 'step' + (st.erledigt ? ' done' : '') },
       el('input', { type: 'checkbox', checked: st.erledigt, onchange: e => setze(t.schritte.map(x => (x.id === st.id ? { ...x, erledigt: e.target.checked } : x))) }),
@@ -233,45 +250,46 @@ function refreshDetail(erst) {
       el('button', { type: 'button', textContent: '🗑', title: 'Schritt löschen', onclick: () => setze(t.schritte.filter(x => x.id !== st.id)) })));
   }
   const fp = Core.schrittFortschritt(t); $('dFort').textContent = fp.gesamt ? ' (' + fp.fertig + '/' + fp.gesamt + ')' : '';
-  optionen($('dZu'), 'Ohne Zuordnung', t.zuordnung || '');
-  $('dAblegen').checked = !!t.ablegen; $('dAblage').textContent = t.ablage ? 'Dateien abgelegt in: ' + t.ablage : '';
-  $('dInfo').textContent = 'Angelegt von ' + t.erstelltVon + ', zuletzt geändert von ' + t.geaendertVon + '.';
-  $('dArch').textContent = t.archiviert ? 'Zurückholen' : 'Archivieren';
-  $('dAbschluss').textContent = t.status === 'done' ? 'Wieder öffnen' : 'Aufgabe abschließen';
-  $('dAbschluss').disabled = offen.length > 0; $('dAbschluss').title = offen.length ? 'Wartet noch auf: ' + offen.map(x => sichtName(x.id)).join(', ') : '';
+  $('dDirty').hidden = !geaendert();
   const box = $('dDateien'); box.replaceChildren();
-  if (!t.dateien.length) box.append(el('p', { className: 'hint', textContent: 'Noch keine Dateien.' }));
-  for (const n of t.dateien) {
+  if (!t0.dateien.length) box.append(el('p', { className: 'hint', textContent: 'Noch keine Dateien.' }));
+  for (const n of t0.dateien) {
     box.append(el('div', { className: 'pl' }, el('span', { textContent: '📎 ' + n }),
-      el('button', { textContent: '↗', title: 'Öffnen', onclick: () => window.api.dateiOeffnen(t.id, n) }),
-      el('button', { textContent: '📂', title: 'Im Ordner zeigen', onclick: () => window.api.dateiZeigen(t.id, n) }),
-      el('button', { textContent: '🗑', title: 'Datei löschen', onclick: async () => { if (confirm('Datei „' + n + '“ löschen?')) { await window.api.dateiLoeschen(t.id, n); await laden(); } } })));
+      el('button', { textContent: '↗', title: 'Öffnen', onclick: () => window.api.dateiOeffnen(t0.id, n) }),
+      el('button', { textContent: '📂', title: 'Im Ordner zeigen', onclick: () => window.api.dateiZeigen(t0.id, n) }),
+      el('button', { textContent: '🗑', title: 'Datei löschen (sofort)', onclick: async () => { if (confirm('Datei „' + n + '“ löschen?')) { await window.api.dateiLoeschen(t0.id, n); await laden(); } } })));
   }
 }
-const feld = (id, key, wert) => { $(id).onchange = () => aendern(detailId, { [key]: wert($(id)) }); };
-feld('dStatus', 'status', e => e.value); feld('dFaellig', 'faellig', e => e.value || null);
-$('dDepAdd').onchange = () => { const v = $('dDepAdd').value; if (v) aendern(detailId, { abhaengigVon: [...finde(detailId).abhaengigVon, v] }); };
-const schrittNeu = () => { const v = $('dSchrittNeu').value.trim(); if (!v) return; $('dSchrittNeu').value = ''; aendern(detailId, { schritte: [...finde(detailId).schritte, { titel: v, erledigt: false }] }); };
+// Texte: bei jedem Tastendruck in den Entwurf (Titel darf nicht leer werden)
+$('dTitel').oninput = () => { const v = $('dTitel').value.trim(); if (v && v !== finde(detailId).titel) entwurf.titel = v; else delete entwurf.titel; $('dDirty').hidden = !geaendert(); };
+$('dNotiz').oninput = () => { const v = $('dNotiz').value; if (v !== (finde(detailId).notiz || '')) entwurf.notiz = v; else delete entwurf.notiz; $('dDirty').hidden = !geaendert(); };
+$('dStatus').onchange = () => setzeEntwurf('status', $('dStatus').value);
+$('dFaellig').onchange = () => setzeEntwurf('faellig', $('dFaellig').value || null);
+$('dZu').onchange = () => setzeEntwurf('zuordnung', $('dZu').value || null);
+$('dHeute').onchange = () => setzeEntwurf('heute', $('dHeute').checked ? heuteStr() : null);
+$('dAblegen').onchange = () => setzeEntwurf('ablegen', $('dAblegen').checked);
+$('dDepAdd').onchange = () => { const v = $('dDepAdd').value; if (v) setzeEntwurf('abhaengigVon', [...effektiv(finde(detailId)).abhaengigVon, v]); };
+const schrittNeu = () => {
+  const v = $('dSchrittNeu').value.trim(); if (!v) return; $('dSchrittNeu').value = '';
+  setzeEntwurf('schritte', [...effektiv(finde(detailId)).schritte, { id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), titel: v, erledigt: false }]);
+};
 $('dSchrittAdd').onclick = schrittNeu; $('dSchrittNeu').onkeydown = e => { if (e.key === 'Enter') schrittNeu(); };
-feld('dAblegen', 'ablegen', e => e.checked); feld('dZu', 'zuordnung', e => e.value || null); feld('dHeute', 'heute', e => e.checked ? heuteStr() : null);
-$('dTitel').onchange = () => { const v = $('dTitel').value.trim(); if (v) aendern(detailId, { titel: v }); else $('dTitel').value = finde(detailId).titel; };
-$('dNotiz').onchange = () => aendern(detailId, { notiz: $('dNotiz').value });
+
+// Zurück: Entwurf verwerfen (mit Rückfrage, wenn etwas geändert wurde). Speichern/Abschließen/Archivieren schicken den Entwurf gesammelt ab.
+function zurueck() {
+  if (geaendert() && !confirm('Ungespeicherte Änderungen verwerfen?')) return false;
+  schliesseDetail(); return true;
+}
+async function absenden(extra) {
+  const ok = await aendern(detailId, { ...entwurf, ...extra });
+  if (ok) schliesseDetail();                     // bei Fehler (z. B. wartet auf …) bleibt alles offen, der Entwurf geht nicht verloren
+}
+$('dZurueck').onclick = zurueck;
+$('dOk').onclick = () => (geaendert() ? absenden({}) : schliesseDetail());
+$('dAbschluss').onclick = () => absenden({ status: finde(detailId).status === 'done' ? 'todo' : 'done' });
+$('dArch').onclick = () => absenden({ archiviert: !finde(detailId).archiviert });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('pTask').hidden) zurueck(); });
 $('dAdd').onclick = async () => { await window.api.dateiWaehlen(detailId); await laden(); };
-// Titel/Notiz stehen evtl. noch im Feld (Änderung wird erst beim Verlassen des Feldes gemeldet): beim Speichern explizit mitnehmen.
-const offeneTexte = () => {
-  const t = finde(detailId), p = {}, titel = $('dTitel').value.trim(), notiz = $('dNotiz').value;
-  if (titel && titel !== t.titel) p.titel = titel;
-  if (notiz !== (t.notiz || '')) p.notiz = notiz;
-  return p;
-};
-const schliesseDetail = () => { detailId = null; $('pTask').hidden = true; };
-$('dOk').onclick = async () => { const p = offeneTexte(); if (Object.keys(p).length && !(await aendern(detailId, p))) return; schliesseDetail(); };
-$('dAbschluss').onclick = async () => {
-  const t = finde(detailId);
-  if (!(await aendern(detailId, { ...offeneTexte(), status: t.status === 'done' ? 'todo' : 'done' }))) return;   // bei Fehler (z. B. wartet auf …) offen lassen
-  schliesseDetail();
-};
-$('dArch').onclick = async () => { const t = finde(detailId); await aendern(detailId, { archiviert: !t.archiviert }); detailId = null; $('pTask').hidden = true; };
 const drop = $('dDrop');
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
 drop.ondragleave = () => drop.classList.remove('over');
